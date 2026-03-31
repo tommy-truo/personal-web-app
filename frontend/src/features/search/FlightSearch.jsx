@@ -25,7 +25,7 @@ const FlightSearch = ({ userID }) => {
         departureDate
       }).toString();
 
-      const url = `https://personal-web-app-alpha.vercel.app/`;
+      const url = `http://localhost:5001`;
       const response = await fetch(`${url}/api/flights/search?${query}`);
       const data = await response.json();
 

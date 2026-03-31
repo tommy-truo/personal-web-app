@@ -10,7 +10,6 @@ import authRouter from './src/routes/authRoutes.js';
 const app = express();
 const PORT = 5001;
 
-
 app.use(cors()); 
 
 app.use(express.json()); 
@@ -32,7 +31,7 @@ app.use((err, req, res, next) => {
 
 //      START SERVER 
 app.listen(PORT, () => {
-    console.log(`Server running at https://personal-web-app-alpha.vercel.app/`);
+    console.log(`Server running at http://localhost:${PORT}/`);
 });
 
 export default app;
