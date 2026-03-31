@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const url = `http://localhost:5001`; // Base URL for API calls
+const url = import.meta.env.VITE_API_URL; // Base URL for API calls
 
 const MyBookings = ({ userID }) => {
   const [bookings, setBookings] = useState([]);

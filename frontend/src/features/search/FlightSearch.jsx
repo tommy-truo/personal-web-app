@@ -25,7 +25,7 @@ const FlightSearch = ({ userID }) => {
         departureDate
       }).toString();
 
-      const url = `http://localhost:5001`;
+      const url = import.meta.env.VITE_API_URL;
       const response = await fetch(`${url}/api/flights/search?${query}`);
       const data = await response.json();
 
