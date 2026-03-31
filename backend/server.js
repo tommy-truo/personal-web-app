@@ -8,7 +8,7 @@ import flightRouter from './src/routes/flight-instance-router.js';
 import authRouter from './src/routes/authRoutes.js';
 
 const app = express();
-const PORT = 5001;
+const PORT = process.env.PORT;
 
 app.use(cors()); 
 
@@ -31,7 +31,7 @@ app.use((err, req, res, next) => {
 
 //      START SERVER 
 app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}/`);
+    console.log(`Server running at https://cosc3380-13429-team1-personal.onrender.com`);
 });
 
 export default app;
