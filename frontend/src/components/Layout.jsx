@@ -13,6 +13,10 @@ const PassengerDashboard = ({userID, onLogout}) => {
     onLogout();
   };
 
+  const handleNavigate = (tab) => {
+    setActiveTab(tab);
+  };
+
   return (
     <div className="dashboard-container">
       <nav className="sidebar">
@@ -52,7 +56,7 @@ const PassengerDashboard = ({userID, onLogout}) => {
 
       <main className="main-content">
         {activeTab === 'search' && <FlightSearch userID={userID} />}
-        {activeTab === 'bookings' && <MyBookings userID={userID} />}
+        {activeTab === 'bookings' && (<MyBookings userID={userID} onNavigate={handleNavigate} />)}
         {activeTab === 'profile' && <Profile userID={userID} />}
       </main>
     </div>

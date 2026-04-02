@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 const url = import.meta.env.VITE_API_URL; // Base URL for API calls
 
-const MyBookings = ({ userID }) => {
+const MyBookings = ({ userID, onNavigate }) => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -187,9 +187,12 @@ const MyBookings = ({ userID }) => {
       {/* FOOTER ACTION: BOOK NEW TRIP */}
       <div style={styles.footerAction}>
         <p style={{ color: '#718096', marginBottom: '15px' }}>Ready for your next adventure?</p>
-        <a href="/search" style={styles.bookTripBtn}>
+        <button 
+          onClick={() => onNavigate('search')} 
+          style={styles.bookTripBtn}
+        >
           + Book a New Trip
-        </a>
+        </button>
       </div>
     </div>
   );
@@ -228,7 +231,7 @@ const styles = {
   
   // Footer Specific Styles
   footerAction: { marginTop: '40px', textAlign: 'center', padding: '30px', borderTop: '1px dashed #e2e8f0' },
-  bookTripBtn: { display: 'inline-block', backgroundColor: '#3182ce', color: 'white', textDecoration: 'none', padding: '12px 28px', borderRadius: '8px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(49, 130, 206, 0.3)' }
+  bookTripBtn: { display: 'inline-block', backgroundColor: '#3182ce', color: 'white', border: 'none', cursor: 'pointer',textDecoration: 'none', padding: '12px 28px', borderRadius: '8px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(49, 130, 206, 0.3)' }
 };
 
 export default MyBookings;
