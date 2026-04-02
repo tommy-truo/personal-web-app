@@ -10,7 +10,7 @@ const App = () => {
 
   // Function to handle successful passenger signup
   const handlePassengerSignupSuccess = (userData) => {
-    console.log("Passenger signed up:", userData);
+    console.log("Passenger signed up:", userData.user.id);
     localStorage.setItem('userID', userData.user.id);
     setCurrentUserId(userData.user.id); // Store user ID in state
 
