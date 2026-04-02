@@ -20,11 +20,11 @@ const App = () => {
   };
   
   // Function to handle successful login
-  const handleLoginSuccess = (userId) => {
+  const handleLoginSuccess = (userData) => {
     // Store user details (like ID) in localStorage here if needed
-    console.log("User logged in:", userId);
-    localStorage.setItem('userID', userId);
-    setCurrentUserId(userId); // Store user ID in state
+    console.log("User logged in:", userData.user.id);
+    localStorage.setItem('userID', userData.user.id);
+    setCurrentUserId(userData.user.id); // Store user ID in state
 
     // ROLE-BASED REDIRECTION
     if (userData.user.role == 'passenger') { // FOR PASSENGER ACCOUNTS
