@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import './SignUp.css';
 
-const SignUp = ({ onSwitch }) => {
+const SignUp = ({ onSignupSuccess, onSwitch }) => {
   const [form, setForm] = useState({            // Form Fields
     firstName: '',
     middleInitial: '',
@@ -49,7 +49,8 @@ const SignUp = ({ onSwitch }) => {
       
       if (res.ok) {
         alert("Account created!"); 
-        onSwitch(); 
+        //onSwitch(); 
+        onSignupSuccess(result); // Pass user data to parent component
       } else {
         alert(result.message || "Signup failed");
       }

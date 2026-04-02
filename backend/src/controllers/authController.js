@@ -23,8 +23,9 @@ export const signup = async (req, res) => {
         const [linkResult] = await db.execute(linkSql, [accountId, passengerId, 'Self', 1]);
 
         // Successful Message
-        return res.status(201).json({ 
-            message: "Signup successful! Details saved in both tables." 
+        return res.status(200).json({ 
+            message: "Signup successful! Details saved in both tables.",
+            user: { id: accountId, email: email, role: 'passenger' } 
         });
 
     } catch (err) {
