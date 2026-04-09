@@ -51,6 +51,7 @@ const SeatSelection = ({ flight, passengersNumber, userID, onBack }) => {
     
     // Calculate middle for aisle (e.g., if 6 cols, aisle is after 3rd)
     const aisleIndex = Math.floor(uniqueCols.length / 2);
+    uniqueCols.splice(aisleIndex, 0, 'AISLE'); // Insert a placeholder for the aisle
 
     return (
       <div key={className} style={{ marginBottom: '40px' }}>
@@ -70,6 +71,10 @@ const SeatSelection = ({ flight, passengersNumber, userID, onBack }) => {
                 // If seat doesn't exist for this specific grid coordinate, render empty div
                 if (!seat) return <div key={`${rowNum}-${colLetter}`} style={{ width: '50px' }} />;
 
+                if (colLetter === 'AISLE') {
+                  return <div key={`${rowNum}-${colLetter}`} style={{ width: '50px', border: '1px solid #ccc' }} />;
+                }
+
                 return (
                   <div
                     key={seat.id}
@@ -88,7 +93,7 @@ const SeatSelection = ({ flight, passengersNumber, userID, onBack }) => {
                       borderRadius: '4px',
                       fontSize: '0.75em',
                       transition: '0.2s all',
-                      marginRight: index === aisleIndex - 1 ? '30px' : '0px' // AISLE SPACER
+                      marginRight: index === aisleIndex ? '30px' : '0px' // AISLE SPACER
                     }}
                   >
                     <span style={{ fontWeight: 'bold' }}>{seat.row}{seat.col}</span>
