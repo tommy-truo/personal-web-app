@@ -13,6 +13,7 @@ export const mapFlightInstance = (row) => {
             country: row.departure_country,
             city: row.departure_city,
             airportName: row.departure_airport_name,
+            iata: row.departure_iata,
             time: row.departure_time
         },
 
@@ -21,6 +22,7 @@ export const mapFlightInstance = (row) => {
             country: row.arrival_country,
             city: row.arrival_city,
             airportName: row.arrival_airport_name,
+            iata: row.arrival_iata,
             time: row.arrival_time
         },
 
@@ -54,6 +56,17 @@ export const mapFlightSeats = (row) => {
         col: row.column_letter,
         class: row.class_name,
 
-        status: row.seat_status
+        status: row.seat_status,
+        isAvailable: validateSeatAvailability(row.seat_status)
     };
+}
+
+function validateSeatAvailability(status) {
+    if (!status) return false;
+
+    if (status === 'Available') {
+        return true;
+    } else {
+        return false;
+    }
 }

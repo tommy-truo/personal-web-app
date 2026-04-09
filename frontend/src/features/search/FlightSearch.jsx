@@ -5,7 +5,7 @@ const FlightSearch = ({ userID }) => {
   const [departureCity, setDepartureCity] = useState('');
   const [arrivalCity, setArrivalCity] = useState('');
   const [departureDate, setDepartureDate] = useState('');
-  const [passengers, setPassengers] = useState(1);
+  const [passengersNumber, setPassengersNumber] = useState(1);
   
   const [flights, setFlights] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,7 @@ const FlightSearch = ({ userID }) => {
         departureCity,
         arrivalCity,
         departureDate,
-        passengers,
+        passengersNumber,
       }).toString();
 
       const url = import.meta.env.VITE_API_URL;
@@ -38,8 +38,10 @@ const FlightSearch = ({ userID }) => {
       if (!response.ok) {
         throw new Error(data.message || data.error || 'Failed to fetch flights');
       }
+      const filteredData = data
+        .filter(flight => flight.status.name !== 'Cancelled' && flight.status.name !== 'Departed'); // Filter out cancelled and departed flights
 
-      setFlights(data);
+      setFlights(filteredData);
     } catch (err) {
       setError(err.message);
       setFlights([]);
@@ -65,7 +67,7 @@ const FlightSearch = ({ userID }) => {
     return (
       <SeatSelection 
         flight={selectedFlight} 
-        passengers={passengers} 
+        passengersNumber={passengersNumber} 
         userID={userID}
         onBack={() => setSelectedFlight(null)} 
       />
@@ -99,7 +101,7 @@ const FlightSearch = ({ userID }) => {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
           <label style={{ fontWeight: 'bold' }}>Passengers</label>
-          <select value={passengers} onChange={(e) => setPassengers(e.target.value)} style={{ padding: '8px' }}>
+          <select value={passengersNumber} onChange={(e) => setPassengersNumber(e.target.value)} style={{ padding: '8px' }}>
             {[...Array(9)].map((_, i) => (
               <option key={i + 1} value={i + 1}>{i + 1}</option>
             ))}
@@ -134,10 +136,11 @@ const FlightSearch = ({ userID }) => {
               </tr>
             </thead>
             <tbody>
-              {flights.map((flight) => (
+              {flights
+                .map((flight) => (
                 <tr key={flight.flightInstanceId} style={{ borderBottom: '1px solid #ddd' }}>
                   <td style={{ padding: '12px', fontWeight: 'bold' }}>{flight.flightNumber}</td>
-                  <td style={{ padding: '12px' }}>{flight.departure.city} → {flight.arrival.city}</td>
+                  <td style={{ padding: '12px' }}>{flight.departure.city} ({flight.departure.iata}) → {flight.arrival.city} ({flight.arrival.iata})</td>
                   <td style={{ padding: '12px' }}>{formatDateTime(flight.departure.time)}</td>
                   <td style={{ padding: '12px' }}>{formatDateTime(flight.arrival.time)}</td>
                   {/* Duration */}

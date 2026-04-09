@@ -30,10 +30,12 @@ export async function searchFlights(args = {}) {
                 depA.city AS departure_city,
                 depA.country AS departure_country,
                 depA.name AS departure_airport_name,
+                depA.iata AS departure_iata,
 
                 arrA.city AS arrival_city,
                 arrA.country AS arrival_country,
                 arrA.name AS arrival_airport_name,
+                arrA.iata AS arrival_iata,
 
                 CASE 
                     WHEN fs.status_name = 'Delayed' THEN fi.actual_departure_datetime
