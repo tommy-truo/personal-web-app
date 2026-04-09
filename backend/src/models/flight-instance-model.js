@@ -50,7 +50,7 @@ export async function searchFlights(args = {}) {
             WHERE depA.city LIKE ? AND arrA.city LIKE ? AND 
                 DATE(fi.scheduled_departure_datetime) = ?;
         `;
-        const [rows] = await pool.query(queryStatement, [`%${departureCity}%`,`%${arrivalCity}%`,departureDate]);
+        const [rows] = await pool.query(queryStatement, [`${departureCity}%`, `${arrivalCity}%`, departureDate]);
         return rows.map(row => mapFlightInstance(row));
     } catch (err) {
         console.error(`Database Error in getAllFlightInstances:`, err);
