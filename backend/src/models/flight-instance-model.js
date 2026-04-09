@@ -1,16 +1,22 @@
 // Written by Tommy Truong
 
 import { pool } from '../../db.js';
-import { mapFlightInstance} from '../utils/mappers/flight-mapper.js';
+import { mapFlightInstance, mapFlightSeats } from '../utils/mappers/flight-mapper.js';
 
 export async function searchFlights(args = {}) {
     try {
         const departureCity = args.departureCity || null;
         const arrivalCity = args.arrivalCity || null;
         const departureDate = args.departureDate || null;
+        const passengersNumber = args.passengersNumber || null;
 
         if (!departureCity) throw new Error(`Departure city is required`);
         if (!arrivalCity) throw new Error(`Arrival city is required`);
+        if (!departureDate) throw new Error(`Departure date is required`);
+        if (!passengersNumber) throw new Error(`Passengers number is required`);
+        if (isNaN(passengersNumber) || passengersNumber < 1) {
+            throw new Error(`Passengers number must be a positive integer`);
+        }
         
         const queryStatement = `
             SELECT 
@@ -47,13 +53,54 @@ export async function searchFlights(args = {}) {
             JOIN airports AS depA ON fr.departure_airport_id = depA.airport_id
             JOIN airports AS arrA ON fr.arrival_airport_id = arrA.airport_id
 
-            WHERE depA.city LIKE ? AND arrA.city LIKE ? AND 
-                DATE(fi.scheduled_departure_datetime) = ?;
+            WHERE 
+                depA.city LIKE ? 
+                AND arrA.city LIKE ? 
+                AND DATE(fi.scheduled_departure_datetime) = ?
+                AND ( 
+                    SELECT COUNT(*) 
+                    FROM flight_seats AS fseats
+                    JOIN seats AS s ON fseats.seat_id = s.seat_id
+                    WHERE fseats.flight_instance_id = fi.flight_instance_id
+                        AND fseats.status_id = (SELECT flight_seat_status_id FROM flight_seat_statuses WHERE status_name = 'Available')
+                ) >= ?
+
+            ORDER BY fi.scheduled_departure_datetime ASC;
         `;
-        const [rows] = await pool.query(queryStatement, [`${departureCity}%`, `${arrivalCity}%`, departureDate]);
+        const [rows] = await pool.query(queryStatement, [`${departureCity}%`, `${arrivalCity}%`, departureDate, passengersNumber]);
         return rows.map(row => mapFlightInstance(row));
     } catch (err) {
         console.error(`Database Error in getAllFlightInstances:`, err);
+        throw err;
+    }
+}
+
+export async function getFlightSeats(flightInstanceID) {
+    try {
+        // get all seats for the aircraft assigned to the flight
+        // then check which ones are available
+        // then return list of all seats with availability statuses
+        const queryStatement = `
+            SELECT
+                s.seat_id,
+                s.seat_row,
+                s.column_letter,
+                cc.class_name,
+
+                fss.status_name AS seat_status
+
+            FROM flight_seats AS fs
+
+            JOIN seats AS s ON fs.seat_id = s.seat_id
+            JOIN flight_seat_statuses AS fss ON fs.status_id = fss.flight_seat_status_id
+            JOIN cabin_classes AS cc ON s.cabin_class_id = cc.cabin_class_id
+
+            WHERE fs.flight_instance_id = ?
+        `;
+        const [rows] = await pool.query(queryStatement, [flightInstanceID]);
+        return rows.map(row => mapFlightSeats(row));
+    } catch (err) {
+        console.error(`Database Error in getFlightSeats:`, err);
         throw err;
     }
 }

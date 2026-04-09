@@ -44,3 +44,16 @@ function calculateDuration(start, end) {
     const diff = new Date(end) - new Date(start);
     return Math.floor(diff / 1000 / 60);
 }
+
+export const mapFlightSeats = (row) => {
+    if (!row) return null;
+
+    return {
+        id: row.seat_id,
+        row: row.seat_row,
+        col: row.column_letter,
+        class: row.class_name,
+
+        status: row.seat_status
+    };
+}
