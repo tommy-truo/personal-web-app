@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import PassengerSelection from './PassengerSelection';
 import SeatSelection from './SeatSelection';
 
@@ -46,8 +46,6 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
         
         <div style={styles.itineraryHeader}>
           <h2 style={{ margin: '0 0 15px 0' }}>Booking Summary</h2>
-
-          {/* Stacked Layout Container */}
           <div style={styles.itineraryStack}>
             {selectedFlights.map((f, index) => (
               <div key={f.flightInstanceId} style={styles.itineraryCard}>
@@ -59,10 +57,7 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
                         <span style={styles.flightCity}>{f.arrival.city} ({f.arrival.iata})</span>
                     </div>
                     <div style={styles.flightSub}>
-                        Flight {f.flightNumber}
-                    </div>
-                    <div style={styles.flightSub}>
-                        {formatDateTime(f.departure.time)} → {formatDateTime(f.arrival.time)}
+                        Flight {f.flightNumber} • {formatDateTime(f.departure.time)} → {formatDateTime(f.arrival.time)}
                     </div>
                 </div>
               </div>
@@ -72,30 +67,25 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
 
         {/* 1. PASSENGER DROPDOWN */}
         <div style={styles.accordionItem}>
-        <div style={styles.accordionHeader} onClick={() => setActiveTab('passengers')}>
-            <span style={styles.stepNumber}>1</span>
-            <span style={styles.stepTitle}>Passenger Information</span>
-            {isPassengersDone && <span style={styles.checkMark}>✓</span>}
-        </div>
-        {activeTab === 'passengers' && (
-            <div style={styles.accordionContent}>
-            <PassengerSelection 
-                userID={userID}
-                requiredCount={passengersNumber}
-                onConfirm={(passengers) => {
-                // Check if passengers actually changed to avoid unnecessary resets
-                setAssignedPassengers(passengers);
-                
-                // CRITICAL: Clear existing seat selections because the 
-                // mapping of "who sits where" is now invalid.
-                setBookingData({}); 
-                
-                setActiveTab('seats'); 
-                }}
-                onBack={onBack} 
-            />
-            </div>
-        )}
+          <div style={styles.accordionHeader} onClick={() => setActiveTab('passengers')}>
+              <span style={styles.stepNumber}>1</span>
+              <span style={styles.stepTitle}>Passenger Information</span>
+              {isPassengersDone && <span style={styles.checkMark}>✓</span>}
+          </div>
+          {activeTab === 'passengers' && (
+              <div style={styles.accordionContent}>
+              <PassengerSelection 
+                  userID={userID}
+                  requiredCount={passengersNumber}
+                  onConfirm={(passengers) => {
+                    setAssignedPassengers(passengers);
+                    setBookingData({}); 
+                    setActiveTab('seats'); 
+                  }}
+                  onBack={onBack} 
+              />
+              </div>
+          )}
         </div>
 
         {/* 2. SEAT SELECTION DROPDOWN */}
@@ -111,9 +101,6 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
           </div>
           {activeTab === 'seats' && isPassengersDone && (
             <div style={styles.accordionContent}>
-              <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '15px' }}>
-                Please select seats for all passengers on each flight.
-              </p>
               {selectedFlights.map(flight => {
                 const hasSeats = !!bookingData[flight.flightInstanceId];
                 return (
@@ -121,7 +108,6 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
                     <div>
                       <div style={{ fontWeight: 'bold' }}>{flight.departure.iata} → {flight.arrival.iata}</div>
                       <div style={{ fontSize: '0.85rem', color: '#666' }}>Flight {flight.flightNumber}</div>
-                      <div style={{ fontSize: '0.85rem', color: '#666' }}>{formatDateTime(flight.departure.time)} → {formatDateTime(flight.arrival.time)}</div>
                     </div>
                     <button 
                       onClick={() => setActiveFlightForSeats(flight)}
@@ -137,33 +123,10 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
         </div>
 
         {isSeatsDone && isPassengersDone && (
-          <button style={styles.finalBookBtn} onClick={() => alert("Redirecting to Secure Payment...")}>
-            Proceed to Payment
+          <button style={styles.finalBookBtn} onClick={() => alert("Proceeding...")}>
+            Proceed to Checkout
           </button>
         )}
-      </div>
-
-      <div style={styles.priceSidebar}>
-        <h3 style={{ marginTop: 0 }}>Price Details</h3>
-        <hr style={styles.hr} />
-        <div style={styles.priceRow}>
-          <span>Base Fare (x{passengersNumber})</span>
-          <span>${(priceDetails.basePrice * passengersNumber).toFixed(2)}</span>
-        </div>
-        <div style={styles.priceRow}>
-          <span>Taxes & Fees</span>
-          <span>${(priceDetails.taxes * passengersNumber).toFixed(2)}</span>
-        </div>
-        <hr style={styles.hr} />
-        <div style={{ ...styles.priceRow, fontWeight: 'bold', fontSize: '1.2rem', color: '#333' }}>
-          <span>Total</span>
-          <span>${priceDetails.total.toFixed(2)}</span>
-        </div>
-        <div style={styles.guaranteeBox}>
-          <span style={{ fontSize: '0.8rem', color: '#666' }}>
-            Prices include all government taxes and carrier fees. No hidden booking charges.
-          </span>
-        </div>
       </div>
     </div>
   );

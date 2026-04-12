@@ -76,10 +76,10 @@ const SeatSelection = ({ flight, passengers, initialSeats, onBack, onSeatsConfir
 
   return (
     <div style={{ padding: '20px', textAlign: 'center' }}>
-      <button onClick={onBack} style={{ float: 'left', padding: '10px', cursor: 'pointer' }}>← Back to List</button>
+      <button onClick={onBack} style={{ float: 'left', padding: '10px', cursor: 'pointer', color: '#007bff' }}>← Back to Summary</button>
       <div style={{ clear: 'both' }}></div>
+
       <h2>Select Seats: Flight {flight.flightNumber}</h2>
-      <div>Your selection will be reserved for the next 10 minutes.</div>
 
       {/* Legend */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', margin: '20px 0', fontSize: '0.9em' }}>
