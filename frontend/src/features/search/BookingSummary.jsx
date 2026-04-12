@@ -29,6 +29,7 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
       <SeatSelection 
         flight={activeFlightForSeats}
         passengers={assignedPassengers}
+        initialSeats={bookingData[activeFlightForSeats.flightInstanceId] || {}}
         onBack={() => setActiveFlightForSeats(null)}
         onSeatsConfirmed={(selections) => {
           setBookingData(prev => ({ ...prev, [activeFlightForSeats.flightInstanceId]: selections }));

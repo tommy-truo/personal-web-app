@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 
-const SeatSelection = ({ flight, passengers, onBack, onSeatsConfirmed }) => {
+const SeatSelection = ({ flight, passengers, initialSeats, onBack, onSeatsConfirmed }) => {
   const [seats, setSeats] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [seatAssignments, setSeatAssignments] = useState({});
+  const [seatAssignments, setSeatAssignments] = useState(initialSeats || {});
 
   useEffect(() => {
     const fetchSeats = async () => {
