@@ -238,7 +238,7 @@ const Profile = ({ userID }) => {
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
-            <h2 style={{ margin: 0, color: '#2d3748', fontSize: '1.5rem' }}>Primary Passenger</h2>
+            <h1 style={{ margin: 0, color: '#2d3748', fontSize: '1.5rem' }}>Primary Passenger (You)</h1>
             <p style={{ margin: '5px 0 0 0', color: '#718096', fontSize: '0.9rem' }}>Your personal passenger information </p>
           </div>
           {editingId !== primaryUser?.passengerId && (
