@@ -57,7 +57,10 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
                         <span style={styles.flightCity}>{f.arrival.city} ({f.arrival.iata})</span>
                     </div>
                     <div style={styles.flightSub}>
-                        Flight {f.flightNumber} • {formatDateTime(f.departure.time)} → {formatDateTime(f.arrival.time)}
+                        Flight {f.flightNumber}
+                    </div>
+                    <div style={styles.flightSub}>
+                      {formatDateTime(f.departure.time)} → {formatDateTime(f.arrival.time)}
                     </div>
                 </div>
               </div>

@@ -1,6 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import BookingSummary from './BookingSummary';
 
+const calculateCost = (distance, totalMinutes, multiplier = 1) => {
+  const timeFactor = 1 + (230 / (totalMinutes + 78));
+  const base = ((distance * 0.621371) / 5.56) * timeFactor * 0.6; // Base cost with time factor
+  return Math.floor(base * multiplier);
+};
+
+const formatDateTime = (dateString) => {
+  return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+  const formatDateLabel = (dateString) => {
+  return new Date(dateString).toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
+
+  const formatDuration = (totalMinutes) => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours === 0 ? `${minutes}m` : minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+};
+
 const FlightSearch = ({ userID }) => {
   const [tripType, setTripType] = useState('one-way');
   const [departureCity, setDepartureCity] = useState('');
@@ -52,9 +72,16 @@ const FlightSearch = ({ userID }) => {
     }
   };
 
-  const handleSelectFlight = (flight) => {
-    const updatedSelection = [...selectedFlights, flight];
+  const handleSelectFlight = (flight, cabinClass, estimatedPrice) => {
+    const flightWithDetails = { 
+      ...flight,
+      selectedClass: cabinClass,
+      basePrice: estimatedPrice
+    };
+
+    const updatedSelection = [...selectedFlights, flightWithDetails];
     setSelectedFlights(updatedSelection);
+    
     if (tripType === 'round-trip' && updatedSelection.length === 1) {
       handleSearch(true);
     } else {
@@ -68,18 +95,6 @@ const FlightSearch = ({ userID }) => {
     setSelectedFlights(newSelection);
     setIsConfirmed(false);
     handleSearch(false);
-  };
-
-  const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString([], { 
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-    });
-  };
-
-  const formatDuration = (totalMinutes) => {
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return hours === 0 ? `${minutes}m` : minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
   };
 
   if (isConfirmed) {
@@ -98,17 +113,14 @@ const FlightSearch = ({ userID }) => {
   }
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '1100px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1>{isSelectingReturn ? 'Select Return Flight' : 'Search Flights'}</h1>
         {selectedFlights.length > 0 && (
           <button onClick={handleBack} style={{ padding: '8px 16px', cursor: 'pointer', borderRadius: '4px', color: '#007bff' }}>← Back to Search</button>
         )}
       </div>
-
-      {/* This search block is hidden when isSelectingReturn is true.
-        I used a 4-column grid and forced the date row to span all 4 columns.
-      */}
+      
       {!isSelectingReturn && (
         <div style={{ 
           display: 'grid', 
@@ -178,36 +190,53 @@ const FlightSearch = ({ userID }) => {
         </div>
       )}
 
-      {/* Results */}
-      <div style={{ marginTop: '30px', overflowX: 'auto' }}>
-        {/* {error && <p style={{ color: '#dc3545', fontWeight: 'bold' }}>{error}</p>} */}
+      {/* DELTA-STYLE RESULTS */}
+      <div style={{ marginTop: '30px' }}>
         {flights.length > 0 ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#333', color: 'white' }}>
-                <th style={{ padding: '12px' }}>Flight</th>
-                <th style={{ padding: '12px' }}>Route</th>
-                <th style={{ padding: '12px' }}>Departure</th>
-                <th style={{ padding: '12px' }}>Arrival</th>
-                <th style={{ padding: '12px' }}>Duration</th>
-                <th style={{ padding: '12px' }}> </th>
-              </tr>
-            </thead>
-            <tbody>
-              {flights.map(f => (
-                <tr key={f.flightInstanceId} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '12px' }}>{f.flightNumber}</td>
-                  <td style={{ padding: '12px' }}>{f.departure.city} ({f.departure.iata}) → {f.arrival.city} ({f.arrival.iata})</td>
-                  <td style={{ padding: '12px' }}>{formatDateTime(f.departure.time)}</td>
-                  <td style={{ padding: '12px' }}>{formatDateTime(f.arrival.time)}</td>
-                  <td style={{ padding: '12px' }}>{formatDuration(f.durationMinutes)}</td>
-                  <td style={{ padding: '12px' }}>
-                    <button onClick={() => handleSelectFlight(f)} style={styles.selectBtn}>Select</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div>
+            {flights.map(f => {
+              const economyPrice = calculateCost(f.distanceKm, f.durationMinutes);
+              const firstClassPrice = Math.floor(economyPrice * 3.5);
+
+              return (
+                <div key={f.flightInstanceId} style={styles.flightCard}>
+                  {/* LEFT SIDE: Flight Info */}
+                  <div style={styles.flightInfoSection}>
+                    <div style={styles.timeRow}>
+                      <div style={styles.timeBlock}>
+                        <div style={styles.timeText}>{formatDateTime(f.departure.time)}</div>
+                        <div style={styles.iataText}>{f.departure.city} ({f.departure.iata})</div>
+                      </div>
+                      <div style={styles.durationLine}>
+                        <span style={styles.durationLabel}>{formatDuration(f.durationMinutes)}</span>
+                        <hr style={styles.line} />
+                        <span style={styles.nonstopText}>Nonstop</span>
+                      </div>
+                      <div style={styles.timeBlock}>
+                        <div style={styles.timeText}>{formatDateTime(f.arrival.time)}</div>
+                        <div style={styles.iataText}>{f.arrival.city} ({f.arrival.iata})</div>
+                      </div>
+                    </div>
+                    <div style={styles.subDetailText}>
+                        {'ACME'} {f.flightNumber} | {formatDateLabel(f.departure.time)}
+                    </div>
+                  </div>
+
+                  {/* RIGHT SIDE: Price Tiles */}
+                  <div style={styles.priceSection}>
+                    <div style={styles.priceTile} onClick={() => handleSelectFlight(f, 'Economy', economyPrice)}>
+                      <div style={styles.classLabel}>Economy</div>
+                      <div style={styles.priceValue}>${economyPrice}</div>
+                    </div>
+                    <div style={{...styles.priceTile, borderLeft: '1px solid #ddd'}} onClick={() => handleSelectFlight(f, 'First Class', firstClassPrice)}>
+                      <div style={styles.classLabel}>First Class</div>
+                      <div style={styles.priceValue}>${firstClassPrice}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : !loading && <p style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>No flights found. Try adjusting your search.</p>}
       </div>
     </div>
@@ -215,12 +244,44 @@ const FlightSearch = ({ userID }) => {
 };
 
 const styles = {
+  searchContainer: { display: 'flex', gap: '15px', padding: '20px', backgroundColor: '#f4f4f4', borderRadius: '8px', marginBottom: '20px' },
   inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  label: { fontSize: '0.9rem', fontWeight: '600', color: '#495057' },
   input: { padding: '10px', borderRadius: '6px', border: '1px solid #ced4da', fontSize: '1rem' },
-  searchBtn: { width: '100%', height: '42px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' },
-  selectBtn: { backgroundColor: '#28a745', color: 'white', padding: '8px 20px', border: 'none', borderRadius: '4px', cursor: 'pointer' },
-  required: { color: '#dc3545', marginLeft: '4px' }
+  searchBtn: { padding: '10px 20px', backgroundColor: '#e01933', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  
+  flightCard: { 
+    display: 'flex', 
+    border: '1px solid #ccc', 
+    borderRadius: '4px', 
+    marginBottom: '15px', 
+    overflow: 'hidden',
+    backgroundColor: '#fff'
+  },
+  flightInfoSection: { flex: 2, padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
+  timeRow: { display: 'flex', alignItems: 'center', gap: '30px', marginBottom: '10px' },
+  timeBlock: { textAlign: 'center' },
+  timeText: { fontSize: '1.4rem', fontWeight: 'bold' },
+  iataText: { fontSize: '0.9rem', color: '#666', fontWeight: 'bold' },
+  
+  durationLine: { flex: 1, textAlign: 'center', position: 'relative' },
+  durationLabel: { fontSize: '0.8rem', color: '#666', fontWeight: 'bold' },
+  line: { border: '0', borderTop: '1px solid #999', margin: '5px 0' },
+  nonstopText: { fontSize: '0.75rem', color: '#28a745', fontWeight: 'bold' },
+  subDetailText: { fontSize: '0.85rem', color: '#666' },
+
+  priceSection: { flex: 1, display: 'flex', backgroundColor: '#f9f9f9' },
+  priceTile: { 
+    flex: 1, 
+    padding: '20px', 
+    display: 'flex', 
+    flexDirection: 'column', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    cursor: 'pointer',
+    transition: 'background 0.2s'
+  },
+  classLabel: { fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '8px', color: '#444' },
+  priceValue: { fontSize: '1.25rem', fontWeight: 'bold', color: '#003366' }
 };
 
 export default FlightSearch;
