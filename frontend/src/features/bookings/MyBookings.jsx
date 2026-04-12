@@ -132,7 +132,7 @@ const MyBookings = ({ userID, onNavigate }) => {
                     onClick={() => setExpandedBooking(expandedBooking === booking.id ? null : booking.id)}
                     style={styles.primaryBtn}
                   >
-                    {expandedBooking === booking.id ? 'Hide Details' : 'Manage Tickets'}
+                    {expandedBooking === booking.id ? 'Hide Details' : 'Show Details'}
                   </button>
                   <button onClick={() => handleCancelBooking(booking.id)} style={styles.cancelLink}>
                     Cancel Booking
