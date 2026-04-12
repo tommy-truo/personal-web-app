@@ -24,8 +24,8 @@ const FlightSearch = ({ userID }) => {
     setFlights([]);
     setError(null);
 
-    if (!from || !to || !date) {
-      alert("Please enter departure city, arrival city, and dates.");
+    if (!from || !to || !date || (tripType === 'round-trip' && !returnDate)) {
+      alert("Please enter all required fields.");
       setLoading(false);
       return;
     }
