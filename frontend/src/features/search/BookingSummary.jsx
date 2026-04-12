@@ -8,13 +8,6 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
   const [bookingData, setBookingData] = useState({}); 
   const [activeFlightForSeats, setActiveFlightForSeats] = useState(null);
 
-  const priceDetails = useMemo(() => {
-    const basePrice = selectedFlights.length * 250; 
-    const taxes = basePrice * 0.15;
-    const total = (basePrice + taxes) * passengersNumber;
-    return { basePrice, taxes, total };
-  }, [selectedFlights, passengersNumber]);
-
   const isPassengersDone = assignedPassengers.length === parseInt(passengersNumber);
   const isSeatsDone = Object.keys(bookingData).length === selectedFlights.length;
 
