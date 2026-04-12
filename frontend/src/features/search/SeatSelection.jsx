@@ -80,6 +80,14 @@ const SeatSelection = ({ flight, passengers, onBack, onSeatsConfirmed }) => {
       <div style={{ clear: 'both' }}></div>
       <h2>Select Seats: Flight {flight.flightNumber}</h2>
       <div>Your selection will be reserved for the next 10 minutes.</div>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', margin: '20px 0', fontSize: '0.9em' }}>
+        <div><span style={{ display: 'inline-block', width: '15px', height: '15px', backgroundColor: '#ffffff', border: '1px solid #ccc', marginRight: '5px' }}></span>Available</div>
+        <div><span style={{ display: 'inline-block', width: '15px', height: '15px', backgroundColor: '#d3d3d3', marginRight: '5px' }}></span>Unavailable</div>
+        <div><span style={{ display: 'inline-block', width: '15px', height: '15px', backgroundColor: '#28a745', marginRight: '5px' }}></span>Selected</div>
+      </div>
+      
       <div style={{ margin: '20px 0', display: 'flex', justifyContent: 'center', gap: '10px' }}>
         {passengers.map(p => (
           <div key={p.passengerId} style={{ padding: '5px 10px', border: '1px solid #ddd', borderRadius: '15px', backgroundColor: Object.values(seatAssignments).some(v => v.passengerId === p.passengerId) ? '#e6fffa' : '#fff' }}>

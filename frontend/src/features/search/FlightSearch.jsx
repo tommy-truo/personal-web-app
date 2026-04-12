@@ -21,6 +21,7 @@ const FlightSearch = ({ userID }) => {
     const to = isReturnSearch ? departureCity : arrivalCity;
     const date = isReturnSearch ? returnDate : departureDate;
     setLoading(true);
+    setFlights([]);
     setError(null);
 
     if (!from || !to || !date) {
@@ -69,6 +70,18 @@ const FlightSearch = ({ userID }) => {
     handleSearch(false);
   };
 
+  const formatDateTime = (dateString) => {
+    return new Date(dateString).toLocaleString([], { 
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+    });
+  };
+
+  const formatDuration = (totalMinutes) => {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return hours === 0 ? `${minutes}m` : minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+  };
+
   if (isConfirmed) {
     return (
       <BookingSummary 
@@ -89,7 +102,7 @@ const FlightSearch = ({ userID }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1>{isSelectingReturn ? 'Select Return Flight' : 'Search Flights'}</h1>
         {selectedFlights.length > 0 && (
-          <button onClick={handleBack} style={{ padding: '8px 16px', cursor: 'pointer', borderRadius: '4px' }}>← Back to Search</button>
+          <button onClick={handleBack} style={{ padding: '8px 16px', cursor: 'pointer', borderRadius: '4px', color: '#007bff' }}>← Back to Search</button>
         )}
       </div>
 
@@ -123,16 +136,16 @@ const FlightSearch = ({ userID }) => {
             <input style={styles.input} type="text" value={arrivalCity} required onChange={(e) => setArrivalCity(e.target.value)} placeholder="E.g. Los Angeles" />
           </div>
           <div style={styles.inputGroup}>
+            <label style={styles.label}>Passengers</label>
+            <select style={styles.input} value={passengersNumber} onChange={(e) => setPassengersNumber(parseInt(e.target.value))}>
+              {[1,2,3,4,5,6,7,8,9].map(num => <option key={num} value={num}>{num}</option>)}
+            </select>
+          </div>
+          <div style={styles.inputGroup}>
             <label style={styles.label}>Trip Type</label>
             <select style={styles.input} value={tripType} onChange={(e) => { setTripType(e.target.value); setSelectedFlights([]); }}>
               <option value="one-way">One-Way</option>
               <option value="round-trip">Round Trip</option>
-            </select>
-          </div>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Passengers</label>
-            <select style={styles.input} value={passengersNumber} onChange={(e) => setPassengersNumber(parseInt(e.target.value))}>
-              {[1,2,3,4,5,6,7,8,9].map(num => <option key={num} value={num}>{num}</option>)}
             </select>
           </div>
 
@@ -166,24 +179,28 @@ const FlightSearch = ({ userID }) => {
       )}
 
       {/* Results */}
-      <div>
+      <div style={{ marginTop: '30px', overflowX: 'auto' }}>
         {/* {error && <p style={{ color: '#dc3545', fontWeight: 'bold' }}>{error}</p>} */}
         {flights.length > 0 ? (
           <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: 'white' }}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #eee', textAlign: 'left' }}>
+              <tr style={{ backgroundColor: '#333', color: 'white' }}>
                 <th style={{ padding: '12px' }}>Flight</th>
                 <th style={{ padding: '12px' }}>Route</th>
-                <th style={{ padding: '12px' }}>Departure Time</th>
-                <th style={{ padding: '12px' }}>Action</th>
+                <th style={{ padding: '12px' }}>Departure</th>
+                <th style={{ padding: '12px' }}>Arrival</th>
+                <th style={{ padding: '12px' }}>Duration</th>
+                <th style={{ padding: '12px' }}> </th>
               </tr>
             </thead>
             <tbody>
               {flights.map(f => (
                 <tr key={f.flightInstanceId} style={{ borderBottom: '1px solid #f0f0f0' }}>
                   <td style={{ padding: '12px' }}>{f.flightNumber}</td>
-                  <td style={{ padding: '12px' }}>{f.departure_city} → {f.arrival_city}</td>
-                  <td style={{ padding: '12px' }}>{new Date(f.departure_time).toLocaleString()}</td>
+                  <td style={{ padding: '12px' }}>{f.departure.city} ({f.departure.iata}) → {f.arrival.city} ({f.arrival.iata})</td>
+                  <td style={{ padding: '12px' }}>{formatDateTime(f.departure.time)}</td>
+                  <td style={{ padding: '12px' }}>{formatDateTime(f.arrival.time)}</td>
+                  <td style={{ padding: '12px' }}>{formatDuration(f.durationMinutes)}</td>
                   <td style={{ padding: '12px' }}>
                     <button onClick={() => handleSelectFlight(f)} style={styles.selectBtn}>Select</button>
                   </td>

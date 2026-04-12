@@ -18,6 +18,12 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
   const isPassengersDone = assignedPassengers.length === parseInt(passengersNumber);
   const isSeatsDone = Object.keys(bookingData).length === selectedFlights.length;
 
+  const formatDateTime = (dateString) => {
+    return new Date(dateString).toLocaleString([], { 
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+    });
+  };
+
   if (activeFlightForSeats) {
     return (
       <SeatSelection 
@@ -35,10 +41,11 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
   return (
     <div style={styles.pageLayout}>
       <div style={styles.workflowColumn}>
-        <button onClick={onBack} style={styles.backLink}>← Back to Search</button>
+        <button onClick={onBack} style={styles.backLink}>← Back to Flights</button>
         
         <div style={styles.itineraryHeader}>
           <h2 style={{ margin: '0 0 15px 0' }}>Booking Summary</h2>
+
           {/* Stacked Layout Container */}
           <div style={styles.itineraryStack}>
             {selectedFlights.map((f, index) => (
@@ -46,17 +53,20 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
                 <div style={styles.legBadge}>{index === 0 ? 'Outbound' : 'Return'}</div>
                 <div style={styles.flightInfoContainer}>
                     <div style={styles.flightMain}>
-                        <span style={styles.flightCity}>{f.departure_city}</span>
+                        <span style={styles.flightCity}>{f.departure.city} ({f.departure.iata})</span>
                         <span style={styles.flightArrow}>→</span>
-                        <span style={styles.flightCity}>{f.arrival_city}</span>
+                        <span style={styles.flightCity}>{f.arrival.city} ({f.arrival.iata})</span>
                     </div>
                     <div style={styles.flightSub}>
-                        Flight {f.flightNumber} • {new Date(f.departure_time).toLocaleDateString()} at {new Date(f.departure_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        Flight {f.flightNumber}
+                    </div>
+                    <div style={styles.flightSub}>
+                        {formatDateTime(f.departure.time)} → {formatDateTime(f.arrival.time)}
                     </div>
                 </div>
               </div>
             ))}
-          </div>
+          </div>  
         </div>
 
         {/* 1. PASSENGER DROPDOWN */}
@@ -108,8 +118,9 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
                 return (
                   <div key={flight.flightInstanceId} style={styles.flightRow}>
                     <div>
-                      <div style={{ fontWeight: 'bold' }}>{flight.departure_city} to {flight.arrival_city}</div>
+                      <div style={{ fontWeight: 'bold' }}>{flight.departure.iata} → {flight.arrival.iata}</div>
                       <div style={{ fontSize: '0.85rem', color: '#666' }}>Flight {flight.flightNumber}</div>
+                      <div style={{ fontSize: '0.85rem', color: '#666' }}>{formatDateTime(flight.departure.time)} → {formatDateTime(flight.arrival.time)}</div>
                     </div>
                     <button 
                       onClick={() => setActiveFlightForSeats(flight)}

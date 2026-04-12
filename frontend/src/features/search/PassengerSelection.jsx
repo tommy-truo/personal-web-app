@@ -21,11 +21,11 @@ const PassengerSelection = ({ userID, requiredCount, onConfirm }) => {
 
   return (
     <div style={{ padding: '20px' }}>
-      <h3>Select {requiredCount} Passenger(s)</h3>
+      <div>Select {requiredCount} Passenger(s)</div>
       {availablePassengers.map(p => (
         <div key={p.passengerId} style={{ padding: '10px', border: '1px solid #eee', margin: '5px 0', display: 'flex', gap: '10px' }}>
           <input 
-            type="checkbox" 
+            type="checkbox"
             checked={!!selectedList.find(item => item.passengerId === p.passengerId)}
             onChange={() => togglePassenger(p)}
           />
