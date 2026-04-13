@@ -36,6 +36,8 @@ const FlightSearch = ({ userID }) => {
 
   const isSelectingReturn = tripType === 'round-trip' && selectedFlights.length === 1;
 
+  const today = new Date().toISOString().split('T')[0];
+
   const handleSearch = async (isReturnSearch = false) => {
     const from = isReturnSearch ? arrivalCity : departureCity;
     const to = isReturnSearch ? departureCity : arrivalCity;
@@ -168,7 +170,20 @@ const FlightSearch = ({ userID }) => {
                 Departure Date
                 <span style={styles.required}>*</span>
               </label>
-              <input style={styles.input} type="date" value={departureDate} required onChange={(e) => setDepartureDate(e.target.value)} />
+              <input 
+                style={styles.input} 
+                type="date" 
+                value={departureDate} 
+                required 
+                min={today} // Prevents dates before today
+                onChange={(e) => {
+                  setDepartureDate(e.target.value);
+                  // Logic: If return date is now before the new departure date, reset it
+                  if (returnDate && e.target.value > returnDate) {
+                    setReturnDate('');
+                  }
+                }} 
+              />
             </div>
             {tripType === 'round-trip' && (
               <div style={{ ...styles.inputGroup, flex: 1 }}>
@@ -176,7 +191,13 @@ const FlightSearch = ({ userID }) => {
                   Return Date
                   <span style={styles.required}>*</span>
                   </label>
-                <input style={styles.input} type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
+                <input 
+                  style={styles.input} 
+                  type="date" 
+                  value={returnDate} 
+                  min={departureDate || today} // Return date can't be before departure date
+                  onChange={(e) => setReturnDate(e.target.value)}
+                />
               </div>
             )}
           </div>
