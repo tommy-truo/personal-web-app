@@ -63,7 +63,7 @@ const FlightSearch = ({ userID }) => {
       const response = await fetch(`${url}/api/flights/search?${query}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Failed to fetch flights');
-      setFlights(data.filter(f => f.status_name !== 'Cancelled' && f.status_name !== 'Departed'));
+      setFlights(data.filter(f => f.status.name !== 'Cancelled' && f.status.name !== 'Departed'));
     } catch (err) {
       setError(err.message);
       setFlights([]);
