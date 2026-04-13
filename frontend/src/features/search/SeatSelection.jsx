@@ -17,17 +17,31 @@ const SeatSelection = ({ flight, passengers, initialSeats, onBack, onSeatsConfir
     fetchSeats();
   }, [flight.flightInstanceId]);
 
-  const handleSeatClick = (seat) => {
+  const handleSeatClick = (seat, seatPrice) => {
     if (!seat.isAvailable) return;
+    
     if (seatAssignments[seat.id]) {
       const next = { ...seatAssignments };
       delete next[seat.id];
       setSeatAssignments(next);
       return;
     }
+    
     const assignedIds = Object.values(seatAssignments).map(p => p.passengerId);
     const nextP = passengers.find(p => !assignedIds.includes(p.passengerId));
-    if (nextP) setSeatAssignments({ ...seatAssignments, [seat.id]: nextP });
+    
+    // Store the seat details alongside the passenger
+    if (nextP) {
+      setSeatAssignments({ 
+        ...seatAssignments, 
+        [seat.id]: { 
+          ...nextP, 
+          seatPrice: seatPrice, // Store the actual price of this seat
+          seatClass: seat.class,
+          seatLabel: `${seat.row}${seat.col}`
+        } 
+      });
+    }
   };
 
   const groupedSeats = seats.reduce((acc, seat) => {
@@ -54,16 +68,59 @@ const SeatSelection = ({ flight, passengers, initialSeats, onBack, onSeatsConfir
                 const s = cSeats.find(st => st.row === r && st.col === c);
                 if (!s) return <div key={`${r}-${c}`} />;
                 if (c === 'aisle') return <div key={`${r}-aisle`} style={{ width: '25px' }} />;
+                
                 const mine = !!seatAssignments[s.id];
+
+                // figure out what the expected price is
+                // figure out what the class's price is
+                let classPrice = flight.basePrice;
+                if (flight.selectedClass === 'Economy') {
+                  if (s.class === 'First Class') classPrice = Math.floor(flight.basePrice * 3.5);
+                } else if (flight.selectedClass === 'First Class') {
+                  if (s.class === 'Economy') classPrice = Math.floor(flight.basePrice / 3.5);
+                }
+
+                const priceDiff = classPrice - flight.basePrice;
+                const priceLabel = priceDiff > 0 ? `+$${priceDiff}` : priceDiff < 0 ? `-$${Math.abs(priceDiff)}` : '+$0';
+
                 return (
-                  <div key={s.id} onClick={() => handleSeatClick(s)} style={{
-                    width: '50px', height: '50px', border: '1px solid #ccc', cursor: s.isAvailable ? 'pointer' : 'not-allowed',
-                    backgroundColor: !s.isAvailable ? '#d3d3d3' : mine ? '#28a745' : '#fff',
-                    color: mine ? 'white' : 'black', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    borderRadius: '4px', fontSize: '0.7em', marginRight: idx === aisle - 1 ? '25px' : '0'
-                  }}>
-                    <b>{s.row}{s.col}</b>
-                    {mine && <span>{seatAssignments[s.id].firstName.substring(0,4)}</span>}
+                  <div 
+                    key={s.id} 
+                    onClick={() => handleSeatClick(s, classPrice)} 
+                    style={{
+                      width: '50px', 
+                      height: '60px', 
+                      border: mine ? '2px solid #1a73e8' : '1px solid #ccc', // Explicit border
+                      cursor: s.isAvailable ? 'pointer' : 'not-allowed',
+                      backgroundColor: !s.isAvailable ? '#d3d3d3' : mine ? '#28a745' : '#fff', // Green when selected
+                      color: mine ? 'white' : 'black', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      borderRadius: '6px', 
+                      fontSize: '0.75rem',
+                      transition: 'all 0.2s ease',
+                      boxShadow: mine ? '0 2px 8px rgba(40, 167, 69, 0.4)' : 'none'
+                    }}
+                  >
+                    <b style={{ fontSize: '0.9rem' }}>{s.row}{s.col}</b>
+                    
+                    {mine ? (
+                      <span style={{ fontSize: '0.6rem', fontWeight: 'bold' }}>
+                        {seatAssignments[s.id].firstName.substring(0,6)}
+                      </span>
+                    ) : (
+                      s.isAvailable && (
+                        <span style={{ 
+                          fontSize: '0.65rem', 
+                          fontWeight: 'bold',
+                          color: priceDiff > 0 ? '#28a745' : priceDiff < 0 ? '#d9534f' : '#888' 
+                        }}>
+                          {priceLabel}
+                        </span>
+                      )
+                    )}
                   </div>
                 );
               })}

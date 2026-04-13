@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import PassengerSelection from './PassengerSelection';
 import SeatSelection from './SeatSelection';
+import Checkout from './Checkout';
 
 const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) => {
   const [activeTab, setActiveTab] = useState('passengers'); 
   const [assignedPassengers, setAssignedPassengers] = useState([]);
   const [bookingData, setBookingData] = useState({}); 
   const [activeFlightForSeats, setActiveFlightForSeats] = useState(null);
+  const [isCheckout, setIsCheckout] = useState(false);
 
   const isPassengersDone = assignedPassengers.length === parseInt(passengersNumber);
   const isSeatsDone = Object.keys(bookingData).length === selectedFlights.length;
@@ -28,6 +30,19 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
           setBookingData(prev => ({ ...prev, [activeFlightForSeats.flightInstanceId]: selections }));
           setActiveFlightForSeats(null);
         }}
+      />
+    );
+  }
+
+  if (isCheckout) {
+    return (
+      <Checkout 
+        selectedFlights={selectedFlights}
+        assignedPassengers={assignedPassengers}
+        bookingData={bookingData}
+        passengersNumber={passengersNumber}
+        userID={userID}
+        onBack={() => setIsCheckout(false)}
       />
     );
   }
@@ -54,6 +69,10 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
                     </div>
                     <div style={styles.flightSub}>
                       {formatDateTime(f.departure.time)} → {formatDateTime(f.arrival.time)}
+                    </div>
+                    <div style={styles.classSelectionSub}>
+                      Cabin Class Preference: 
+                      <div style={{ fontWeight: 'bold' }}>{f.selectedClass ? f.selectedClass : 'Not Selected'}</div>
                     </div>
                 </div>
               </div>
@@ -119,8 +138,8 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
         </div>
 
         {isSeatsDone && isPassengersDone && (
-          <button style={styles.finalBookBtn} onClick={() => alert("Proceeding...")}>
-            Proceed to Checkout
+          <button style={styles.finalBookBtn} onClick={() => setIsCheckout(true)}>
+            Review & Checkout
           </button>
         )}
       </div>
@@ -158,6 +177,7 @@ const styles = {
   flightMain: { fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '4px' },
   flightArrow: { margin: '0 12px', color: '#999', fontWeight: 'normal' },
   flightSub: { fontSize: '0.85rem', color: '#666' },
+  classSelectionSub: { fontSize: '0.9rem', marginTop: '6px' },
   
   priceSidebar: { flex: 1, backgroundColor: '#f8f9fa', padding: '25px', borderRadius: '12px', height: 'fit-content', border: '1px solid #eee', position: 'sticky', top: '20px' },
   accordionItem: { border: '1px solid #ddd', borderRadius: '8px', marginBottom: '15px', overflow: 'hidden', backgroundColor: 'white' },

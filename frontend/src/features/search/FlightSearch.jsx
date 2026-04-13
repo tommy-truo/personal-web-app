@@ -205,6 +205,7 @@ const FlightSearch = ({ userID }) => {
                     <div style={styles.timeRow}>
                       <div style={styles.timeBlock}>
                         <div style={styles.timeText}>{formatDateTime(f.departure.time)}</div>
+                        <div style={styles.dateText}>{formatDateLabel(f.departure.time)}</div>
                         <div style={styles.iataText}>{f.departure.city} ({f.departure.iata})</div>
                       </div>
                       <div style={styles.durationLine}>
@@ -214,11 +215,12 @@ const FlightSearch = ({ userID }) => {
                       </div>
                       <div style={styles.timeBlock}>
                         <div style={styles.timeText}>{formatDateTime(f.arrival.time)}</div>
+                        <div style={styles.dateText}>{formatDateLabel(f.arrival.time)}</div>
                         <div style={styles.iataText}>{f.arrival.city} ({f.arrival.iata})</div>
                       </div>
                     </div>
                     <div style={styles.subDetailText}>
-                        {'ACME'} {f.flightNumber} | {formatDateLabel(f.departure.time)}
+                        {f.flightNumber}
                     </div>
                   </div>
 
@@ -261,7 +263,8 @@ const styles = {
   timeRow: { display: 'flex', alignItems: 'center', gap: '30px', marginBottom: '10px' },
   timeBlock: { textAlign: 'center' },
   timeText: { fontSize: '1.4rem', fontWeight: 'bold' },
-  iataText: { fontSize: '0.9rem', color: '#666', fontWeight: 'bold' },
+  dateText: { fontSize: '0.875rem', fontWeight: 'bold'},
+  iataText: { fontSize: '1.0rem', color: '#666', fontWeight: 'bold' },
   
   durationLine: { flex: 1, textAlign: 'center', position: 'relative' },
   durationLabel: { fontSize: '0.8rem', color: '#666', fontWeight: 'bold' },
