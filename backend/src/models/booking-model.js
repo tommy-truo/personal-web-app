@@ -59,7 +59,10 @@ export async function getPassengerBookings(ownerID) {
             JOIN terminals AS arrT ON arrG.terminal_id = arrT.terminal_id
             JOIN airports AS arrA ON arrT.airport_id = arrA.airport_id
 
-            WHERE b.booking_owner_passenger_id = ?
+            JOIN account_passengers AS ap ON ap.passenger_id = b.booking_owner_passenger_id
+            JOIN accounts AS acc ON acc.account_id = ap.account_id
+
+            WHERE acc.account_id = ?
             ORDER BY b.created_datetime DESC;
         `;
 
@@ -184,73 +187,78 @@ export async function createBookingWithTickets(args = {}) {
     const conn = await pool.getConnection();
 
     try {
+        // Input
         const ownerID = args.ownerID ?? args.owner_id ?? null;
+        const flightInstanceID = args.flightInstanceID ?? args.flight_instance_id ?? null;
         const tickets = args.tickets ?? null;
-        const paymentMethod = args.paymentMethod ?? null; 
 
-        // Validate inputs
-        if (!ownerID) throw new Error("Missing owner ID");
+        // Validate input
+        if (!ownerID) { throw new Error("Missing ownerID"); }
+        if (!flightInstanceID) { throw new Error("Missing flightInstanceID"); }
         if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
-            throw new Error("Missing or invalid tickets array");
+            throw new Error("Tickets must be a non-empty array");
         }
-        if (!paymentMethod) throw new Error("Missing payment method");
 
-        const totalAmount = tickets.reduce((sum, t) => sum + (Number(t.ticket_price) || 0), 0);
-
-        for (const t of tickets) {
-            if (!t.passengerID || !t.flightInstanceID || !t.seatID) {
-                throw new Error("Each ticket must include passengerID, flightInstanceID, and seatID");
+        for (const ticket of tickets) {
+            if (!ticket.passengerID || !ticket.seatID || !ticket.price) {
+                throw new Error("Each ticket must have a passengerID, seatID, and price");
             }
         }
 
         await conn.beginTransaction();
 
-        // Create booking with "Pending" status
-        const bookingQuery = `
+        // Lock the flight seats that are being booked
+        const seatIDs = tickets.map(t => t.seatID);
+        const lockSeatsStatement = `
+            SELECT fs.seat_id, fss.status_name
+            FROM flight_seats AS fs
+            JOIN flight_seat_statuses AS fss ON fs.status_id = fss.flight_seat_status_id
+            WHERE fs.flight_instance_id = ?
+                AND fs.seat_id IN (?)
+            FOR UPDATE;
+        `;
+        const [lockedSeats] = await conn.query(lockSeatsStatement, [flightInstanceID, seatIDs]);
+        const isAvailable = lockedSeats.length === seatIDs.length
+            && lockedSeats.every(s => s.status_name === 'Available');
+
+        if (!isAvailable) {
+            throw new Error(`One or more selected seats are no longer available. Please refresh and select different seats.`);
+        }
+
+        // Reserve the seats by setting their status to 'Reserved'
+        const reserveSeatsStatement = `
+            UPDATE flight_seats
+            SET status_id = (SELECT flight_seat_status_id
+                            FROM flight_seat_statuses
+                            WHERE status_name = 'Reserved'
+                            LIMIT 1)
+            WHERE flight_instance_id = ? 
+                AND seat_id IN (?);
+        `;
+        const [reservedSeats] = await conn.query(reserveSeatsStatement, [flightInstanceID, seatIDs]);
+        if (reservedSeats.affectedRows !== seatIDs.length) {
+            throw new Error(`Failed to reserve all selected seats. Please refresh and try again.`);
+        }
+
+        // Create booking
+        const createBookingStatement = `
             INSERT INTO bookings (
                 booking_owner_passenger_id,
                 booking_status_id
-            )
-            VALUES (
+            ) VALUES (
                 ?,
-                (SELECT booking_status_id 
-                 FROM booking_statuses 
-                 WHERE status_name = 'Pending' 
-                 LIMIT 1)
+                (   SELECT booking_status_id
+                    FROM booking_statuses
+                    WHERE status_name = 'Pending'
+                    LIMIT 1
+                )
             )
         `;
-        const [bookingResult] = await conn.query(bookingQuery, [ownerID]);
-        const bookingID = bookingResult.insertId;
+        const [newBooking] = await conn.query(createBookingStatement, [ownerID]);
+        const newBookingID = newBooking.insertId;
 
-        // Check seat availability before inserting tickets
-        for (const t of tickets) {
-            // This combines "Verification" and "Action" into one query
-            const seatUpdate = `
-                UPDATE flight_seats 
-                SET status_id = (SELECT flight_seat_status_id FROM flight_seat_statuses WHERE status_name = 'Occupied')
-                WHERE flight_instance_id = ? 
-                AND seat_id = ? 
-                AND status_id = (SELECT flight_seat_status_id FROM flight_seat_statuses WHERE status_name = 'Available');
-            `;
-
-            const [seatResult] = await conn.execute(seatUpdate, [t.flightInstanceID, t.seatID]);
-            if (seatResult.affectedRows === 0) {
-                // The seat wasn't Available
-                throw new Error("Seat is no longer available.");
-            }
-        } 
-
-        // Batch insert tickets
-        const ticketValues = tickets.map(t => [
-            bookingID,
-            t.passengerID,
-            t.flightInstanceID,
-            t.seatID,
-            t.boarding_group_id,
-            t.ticket_price,
-            0 // checked_in default
-        ]);
-        const ticketQuery = `
+        // Create tickets
+        const createTicketsStatement = `
             INSERT INTO tickets (
                 booking_id,
                 passenger_id,
@@ -259,139 +267,41 @@ export async function createBookingWithTickets(args = {}) {
                 boarding_group_id,
                 ticket_price,
                 checked_in
-            ) VALUES ?
-        `;
-        await conn.query(ticketQuery, [ticketValues]);
-
-        // Create new transaction record
-        const transactionStatement = `
-            INSERT INTO transactions (
-                booking_id,
-                payment_method_id,
-                transaction_type_id,
-                amount,
-                transaction_datetime
-                )
-            VALUES (
-                ?,
-                (SELECT transaction_payment_method_id FROM transaction_payment_methods WHERE payment_method_name = ? LIMIT 1),
-                (SELECT transaction_type_id FROM transaction_types WHERE type_name = 'Payment' LIMIT 1),
-                ?,
-                NOW()
             )
+            SELECT
+                ?, -- booking_id
+                ?, -- passenger_id
+                ?, -- flight_instance_id
+                s.seat_id,
+                bg.boarding_group_id,
+                ?, -- ticket_price
+                0 -- checked_in
+            FROM seats AS s
+            JOIN cabin_classes AS cc ON s.cabin_class_id = cc.cabin_class_id
+            JOIN boarding_groups AS bg ON (
+                (cc.class_name = 'First Class' AND bg.group_name = 'First Class') OR
+                (cc.class_name = 'Business' AND bg.group_name = 'Business Class') OR
+                (cc.class_name = 'Premium Economy' AND bg.group_name = 'Group 1') OR
+                (cc.class_name NOT IN ('First Class', 'Business', 'Premium Economy') AND bg.group_name = 'Group 2')
+            )
+            WHERE s.seat_id = ?;
         `;
-        const transactionValues = [
-            bookingID,
-            paymentMethod,
-            totalAmount
-        ]
-        const [transactionResult] = await conn.query(transactionStatement, transactionValues);
-        if (transactionResult.affectedRows === 0) {
-            throw new Error("Invalid payment method or transaction type.");
+        for (const ticket of tickets) {
+            await conn.query(createTicketsStatement, [
+                newBookingID,
+                ticket.passengerID,
+                flightInstanceID,
+                ticket.price,
+                ticket.seatID
+            ]);
         }
 
         await conn.commit();
-        return bookingID;
+        return newBookingID;
 
     } catch (err) {
         await conn.rollback();
         console.error("Database Error with createBookingWithTickets", err);
-        throw err;
-    } finally {
-        conn.release();
-    }
-}
-
-// Sets a booking's status to Confirmed
-
-// Inserts new tickets into tickets table
-// Returns list of ticket IDs
-export async function addTickets(args = {}) {
-    const conn = await pool.getConnection();
-
-    try {
-        const bookingID = args.bookingID ?? args.booking_id ?? null;
-        const tickets = args.tickets ?? null;
-        const paymentMethod = args.paymentMethod ?? null; 
-
-        // Validate arguments
-        if (!bookingID) { throw new Error("Missing booking ID"); }
-        if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
-            throw new Error("Missing or invalid ticket array");
-        }
-        if (!paymentMethod) throw new Error("Missing payment method");
-
-        // Check booking status before inserting tickets
-        const bookingCheck = `
-            SELECT 1
-            FROM bookings
-            JOIN booking_statuses AS bs ON bookings.booking_status_id = bs.booking_status_id
-            WHERE bookings.booking_id = ? AND bs.status_name != 'Cancelled'
-            LIMIT 1
-        `;
-        const [bookingCheckResult] = await conn.execute(bookingCheck, [bookingID]);
-        if (bookingCheckResult.length === 0) {
-            throw new Error("Booking does not exist or is cancelled.");
-        }
-        
-        // Check seat availability before inserting tickets
-        for (const t of tickets) {
-            // This combines "Verification" and "Action" into one query
-            const seatUpdate = `
-                UPDATE flight_seats 
-                SET status_id = (SELECT flight_seat_status_id FROM flight_seat_statuses WHERE status_name = 'Occupied')
-                WHERE flight_instance_id = ? 
-                AND seat_id = ? 
-                AND status_id = (SELECT flight_seat_status_id FROM flight_seat_statuses WHERE status_name = 'Available');
-            `;
-
-            const [seatResult] = await conn.execute(seatUpdate, [t.flightInstanceID, t.seatID]);
-            if (seatResult.affectedRows === 0) {
-                // The seat wasn't Available
-                throw new Error("Seat is no longer available.");
-            }
-        } 
-
-        // Batch insert tickets
-        const ticketValues = tickets.map(t => [
-            bookingID,
-            t.passengerID,
-            t.flightInstanceID,
-            t.seatID,
-            t.boarding_group_id,
-            t.ticket_price,
-            0 // checked_in default
-        ]);
-
-        const ticketQuery = `
-            INSERT INTO tickets (
-                booking_id,
-                passenger_id,
-                flight_instance_id,
-                seat_id,
-                boarding_group_id,
-                ticket_price,
-                checked_in
-            ) VALUES ?
-        `;
-        const [ticketResults] = await conn.query(ticketQuery, [ticketValues]);
-        const firstID = ticketResults.insertId;
-        const count = ticketResults.affectedRows;
-        const ticketIDs = Array.from({ length: count }, (_, i) => firstID + i);
-
-        // Update booking's last-updated timestamp
-        const bookingStatement = `
-            UPDATE bookings
-            SET last_updated_datetime = NOW()
-            WHERE booking_id = ?
-        `;
-        await conn.query(bookingStatement, [bookingID])
-
-        await conn.commit();
-        return ticketIDs;
-    } catch (err) {
-        await conn.rollback();
-        console.error("Database Error in addTickets", err);
         throw err;
     } finally {
         conn.release();
