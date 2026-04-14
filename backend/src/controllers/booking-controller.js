@@ -16,10 +16,9 @@ export const getPassengerBookings = async (req, res) => {
 };
 
 // POST /api/bookings
-export const createBooking = async (req, res) => {
+export const createPendingBooking = async (req, res) => {
     try {
-        // Expects body: { ownerID: 1, tickets: [{ passengerID, flightInstanceID, seatID, ... }] }
-        const bookingID = await BookingModel.createBookingWithTickets(req.body);
+        const bookingID = await BookingModel.createPendingBooking(req.body);
         
         res.status(201).json({ 
             message: "Booking created successfully.", 

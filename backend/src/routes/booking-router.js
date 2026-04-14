@@ -6,7 +6,7 @@ const router = Router();
 // --- Booking Management ---
 
 // POST /api/bookings - Create a new booking with tickets
-router.post('/', BookingController.createBooking);
+router.post('/', BookingController.createPendingBooking);
 
 // GET /api/bookings/passenger/:ownerID - Get all bookings for a specific passenger owner
 router.get('/passenger/:ownerID', BookingController.getPassengerBookings);

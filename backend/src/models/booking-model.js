@@ -9,127 +9,93 @@ export async function getPassengerBookings(ownerID) {
             SELECT
                 b.booking_id,
                 bs.status_name AS booking_status,
+                b.created_datetime,
                 t.ticket_id,
-                t.checked_in AS checked_in,
+                t.checked_in,
                 bg.group_name,
                 fr.flight_number,
+                fi.flight_instance_id,
                 fs.status_name AS flight_status,
                 fir.reason_name AS status_reason,
-
-                depA.city AS dep_city,
-                depA.country AS dep_country,
-                depA.name AS dep_airport_name,
-                depT.name AS dep_terminal_name,
-                depG.number AS dep_gate_number,
-
-                arrA.city AS arr_city,
-                arrA.country AS arr_country,
-                arrA.name AS arr_airport_name,
-                arrT.name AS arr_terminal_name,
-                arrG.number AS arr_gate_number,
-
+                depA.city AS dep_city, depA.country AS dep_country, depA.iata AS dep_iata,
+                arrA.city AS arr_city, arrA.country AS arr_country, arrA.iata AS arr_iata,
                 fi.scheduled_departure_datetime,
                 fi.scheduled_arrival_datetime,
-
-                p.first_name,
-                p.last_name,
-
-                s.seat_row,
-                s.column_letter
+                p.first_name, p.last_name,
+                s.seat_row, s.column_letter
             FROM bookings AS b
             JOIN booking_statuses AS bs ON b.booking_status_id = bs.booking_status_id
             JOIN tickets AS t ON t.booking_id = b.booking_id
             JOIN boarding_groups AS bg ON t.boarding_group_id = bg.boarding_group_id
             JOIN passengers AS p ON t.passenger_id = p.passenger_id
-
             JOIN flight_seats AS fse ON t.seat_id = fse.seat_id AND t.flight_instance_id = fse.flight_instance_id
             JOIN seats AS s ON fse.seat_id = s.seat_id
             JOIN flight_instances AS fi ON fse.flight_instance_id = fi.flight_instance_id
-
             JOIN flight_statuses AS fs ON fi.status_id = fs.flight_status_id
-
             LEFT JOIN flight_irregularity_reasons AS fir ON fi.status_reason_id = fir.flight_irregularity_reason_id
             JOIN flight_routes AS fr ON fi.flight_route_id = fr.flight_route_id
-
             JOIN gates AS depG ON fi.departure_gate_id = depG.gate_id
             JOIN terminals AS depT ON depG.terminal_id = depT.terminal_id
             JOIN airports AS depA ON depT.airport_id = depA.airport_id
-
             JOIN gates AS arrG ON fi.arrival_gate_id = arrG.gate_id
             JOIN terminals AS arrT ON arrG.terminal_id = arrT.terminal_id
             JOIN airports AS arrA ON arrT.airport_id = arrA.airport_id
-
             JOIN account_passengers AS ap ON ap.passenger_id = b.booking_owner_passenger_id
-            JOIN accounts AS acc ON acc.account_id = ap.account_id
-
-            WHERE acc.account_id = ?
-            ORDER BY b.created_datetime DESC;
+            WHERE ap.account_id = ?
+            ORDER BY b.created_datetime DESC, fi.scheduled_departure_datetime ASC;
         `;
 
         const [rows] = await pool.query(query, [ownerID]);
 
-        const groupedBookings = rows.reduce((acc, row) => {
+        const grouped = rows.reduce((acc, row) => {
+            // 1. Initialize Booking
             if (!acc[row.booking_id]) {
                 acc[row.booking_id] = {
                     id: row.booking_id,
                     status: row.booking_status,
+                    created: row.created_datetime,
+                    flights: {} // Use an object here to group by flight_instance_id
+                };
+            }
 
-                    flight: {
-                        number: row.flight_number,
-                        status: row.flight_status,
-                        statusReason: row.status_reason,
-                    },
-
+            // 2. Initialize Flight within Booking
+            if (!acc[row.booking_id].flights[row.flight_instance_id]) {
+                acc[row.booking_id].flights[row.flight_instance_id] = {
+                    instanceId: row.flight_instance_id,
+                    number: row.flight_number,
+                    status: row.flight_status,
                     departure: {
-                        departureCity: row.dep_city,
-                        departureCountry: row.dep_country,
-
-                        departureAirport: row.dep_airport_name,
-                        departureTerminal: row.dep_terminal_name,
-                        departureGate: row.dep_gate_number,
-
-                        scheduledDeparture: row.scheduled_departure_datetime,
+                        city: row.dep_city,
+                        iata: row.dep_iata,
+                        time: row.scheduled_departure_datetime
                     },
-
                     arrival: {
-                        arrivalCity: row.arr_city,
-                        arrivalCountry: row.arr_country,
-
-                        arrivalAirport: row.arr_airport_name,
-                        arrivalTerminal: row.arr_terminal_name,
-                        arrivalGate: row.arr_gate_number,
-
-                        scheduledArrival: row.scheduled_arrival_datetime,
+                        city: row.arr_city,
+                        iata: row.arr_iata,
+                        time: row.scheduled_arrival_datetime
                     },
-
                     tickets: []
                 };
             }
 
-            acc[row.booking_id].tickets.push({
+            // 3. Add Ticket to the specific Flight
+            acc[row.booking_id].flights[row.flight_instance_id].tickets.push({
                 id: row.ticket_id,
+                passenger: `${row.first_name} ${row.last_name}`,
+                seat: `${row.seat_row}${row.column_letter}`,
                 boardingGroup: row.group_name,
-                
-                passenger: {
-                    firstName: row.first_name,
-                    lastName: row.last_name
-                },
-
-                seat: {
-                    row: row.seat_row,
-                    col: row.column_letter
-                },
-
-
-                checkedIn: Boolean(row.checked_in) // Force 1/0 to true/false
+                checkedIn: Boolean(row.checked_in)
             });
 
             return acc;
         }, {});
 
-        return Object.values(groupedBookings);
+        // Convert nested objects back to arrays for the frontend
+        return Object.values(grouped).map(b => ({
+            ...b,
+            flights: Object.values(b.flights)
+        }));
     } catch (err) {
-        console.error("Database Error in getPassengerBookings", err);
         throw err;
     }
 }
@@ -181,119 +147,76 @@ export async function ticketExists(args = {}) {
     }
 }
 
-// Inserts new booking and tickets in a single transaction
-// Returns the new booking ID
-export async function createBookingWithTickets(args = {}) {
+// Updated to handle multiple flights (Round-Trip) and fix scoping
+export async function createPendingBooking(args = {}) {
     const conn = await pool.getConnection();
 
     try {
-        // Input
         const ownerID = args.ownerID ?? args.owner_id ?? null;
-        const flightInstanceID = args.flightInstanceID ?? args.flight_instance_id ?? null;
-        const tickets = args.tickets ?? null;
+        const tickets = args.tickets ?? null; // Expecting [{ passengerID, seatID, flightInstanceID, price }, ...]
 
-        // Validate input
-        if (!ownerID) { throw new Error("Missing ownerID"); }
-        if (!flightInstanceID) { throw new Error("Missing flightInstanceID"); }
+        if (!ownerID) throw new Error("Missing ownerID");
         if (!tickets || !Array.isArray(tickets) || tickets.length === 0) {
             throw new Error("Tickets must be a non-empty array");
         }
 
-        for (const ticket of tickets) {
-            if (!ticket.passengerID || !ticket.seatID || !ticket.price) {
-                throw new Error("Each ticket must have a passengerID, seatID, and price");
-            }
-        }
-
         await conn.beginTransaction();
 
-        // Lock the flight seats that are being booked
-        const seatIDs = tickets.map(t => t.seatID);
-        const lockSeatsStatement = `
-            SELECT fs.seat_id, fss.status_name
-            FROM flight_seats AS fs
-            JOIN flight_seat_statuses AS fss ON fs.status_id = fss.flight_seat_status_id
-            WHERE fs.flight_instance_id = ?
-                AND fs.seat_id IN (?)
-            FOR UPDATE;
-        `;
-        const [lockedSeats] = await conn.query(lockSeatsStatement, [flightInstanceID, seatIDs]);
-        const isAvailable = lockedSeats.length === seatIDs.length
-            && lockedSeats.every(s => s.status_name === 'Available');
-
-        if (!isAvailable) {
-            throw new Error(`One or more selected seats are no longer available. Please refresh and select different seats.`);
-        }
-
-        // Reserve the seats by setting their status to 'Reserved'
-        const reserveSeatsStatement = `
-            UPDATE flight_seats
-            SET status_id = (SELECT flight_seat_status_id
-                            FROM flight_seat_statuses
-                            WHERE status_name = 'Reserved'
-                            LIMIT 1)
-            WHERE flight_instance_id = ? 
-                AND seat_id IN (?);
-        `;
-        const [reservedSeats] = await conn.query(reserveSeatsStatement, [flightInstanceID, seatIDs]);
-        if (reservedSeats.affectedRows !== seatIDs.length) {
-            throw new Error(`Failed to reserve all selected seats. Please refresh and try again.`);
-        }
-
-        // Create booking
+        // 1. CREATE THE MASTER BOOKING
         const createBookingStatement = `
-            INSERT INTO bookings (
-                booking_owner_passenger_id,
-                booking_status_id
-            ) VALUES (
-                ?,
-                (   SELECT booking_status_id
-                    FROM booking_statuses
-                    WHERE status_name = 'Pending'
-                    LIMIT 1
-                )
+            INSERT INTO bookings (booking_owner_passenger_id, booking_status_id) 
+            VALUES (
+                (SELECT passenger_id FROM account_passengers WHERE account_id = ? AND is_primary = 1 LIMIT 1),
+                (SELECT booking_status_id FROM booking_statuses WHERE status_name = 'Pending' LIMIT 1)
             )
         `;
         const [newBooking] = await conn.query(createBookingStatement, [ownerID]);
         const newBookingID = newBooking.insertId;
 
-        // Create tickets
-        const createTicketsStatement = `
-            INSERT INTO tickets (
-                booking_id,
-                passenger_id,
-                flight_instance_id,
-                seat_id,
-                boarding_group_id,
-                ticket_price,
-                checked_in
-            )
-            SELECT
-                ?, -- booking_id
-                ?, -- passenger_id
-                ?, -- flight_instance_id
-                s.seat_id,
-                bg.boarding_group_id,
-                ?, -- ticket_price
-                0 -- checked_in
-            FROM seats AS s
-            JOIN cabin_classes AS cc ON s.cabin_class_id = cc.cabin_class_id
-            JOIN boarding_groups AS bg ON (
-                (cc.class_name = 'First Class' AND bg.group_name = 'First Class') OR
-                (cc.class_name = 'Business' AND bg.group_name = 'Business Class') OR
-                (cc.class_name = 'Premium Economy' AND bg.group_name = 'Group 1') OR
-                (cc.class_name NOT IN ('First Class', 'Business', 'Premium Economy') AND bg.group_name = 'Group 2')
-            )
-            WHERE s.seat_id = ?;
-        `;
+        // 2. PROCESS TICKETS (Grouped by flight to handle locking/updates efficiently)
         for (const ticket of tickets) {
-            await conn.query(createTicketsStatement, [
-                newBookingID,
-                ticket.passengerID,
-                flightInstanceID,
-                ticket.price,
-                ticket.seatID
-            ]);
+            const { passengerID, seatID, flightInstanceID, price } = ticket;
+
+            // Lock and Verify Seat Availability
+            const lockSeatsStatement = `
+                SELECT fs.seat_id, fss.status_name
+                FROM flight_seats AS fs
+                JOIN flight_seat_statuses AS fss ON fs.status_id = fss.flight_seat_status_id
+                WHERE fs.flight_instance_id = ? AND fs.seat_id = ?
+                FOR UPDATE;
+            `;
+            const [locked] = await conn.query(lockSeatsStatement, [flightInstanceID, seatID]);
+            
+            if (locked.length === 0 || locked[0].status_name !== 'Available') {
+                throw new Error(`Seat ${seatID} on flight ${flightInstanceID} is no longer available.`);
+            }
+
+            // Update Seat Status to Reserved
+            const reserveSeatsStatement = `
+                UPDATE flight_seats
+                SET 
+                    status_id = (SELECT flight_seat_status_id FROM flight_seat_statuses WHERE status_name = 'Reserved' LIMIT 1),
+                    reservation_expiration_datetime = NOW() + INTERVAL 20 MINUTE,
+                    reservation_owner_passenger_id = (SELECT passenger_id FROM account_passengers WHERE account_id = ? AND is_primary = 1 LIMIT 1)
+                WHERE flight_instance_id = ? AND seat_id = ?;
+            `;
+            await conn.query(reserveSeatsStatement, [ownerID, flightInstanceID, seatID]);
+
+            // Insert Ticket
+            const createTicketsStatement = `
+                INSERT INTO tickets (booking_id, passenger_id, flight_instance_id, seat_id, boarding_group_id, ticket_price, checked_in)
+                SELECT ?, ?, ?, ?, bg.boarding_group_id, ?, 0
+                FROM seats AS s
+                JOIN cabin_classes AS cc ON s.cabin_class_id = cc.cabin_class_id
+                JOIN boarding_groups AS bg ON (
+                    (cc.class_name = 'First Class' AND bg.group_name = 'First Class') OR
+                    (cc.class_name = 'Business' AND bg.group_name = 'Business Class') OR
+                    (cc.class_name = 'Premium Economy' AND bg.group_name = 'Group 1') OR
+                    (cc.class_name NOT IN ('First Class', 'Business', 'Premium Economy') AND bg.group_name = 'Group 2')
+                )
+                WHERE s.seat_id = ?;
+            `;
+            await conn.query(createTicketsStatement, [newBookingID, passengerID, flightInstanceID, seatID, price, seatID]);
         }
 
         await conn.commit();
@@ -301,10 +224,22 @@ export async function createBookingWithTickets(args = {}) {
 
     } catch (err) {
         await conn.rollback();
-        console.error("Database Error with createBookingWithTickets", err);
         throw err;
     } finally {
         conn.release();
+    }
+}
+
+export async function confirmBooking(bookingID) {
+    const conn = await pool.getConnection();
+
+    try {
+        //
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release()
     }
 }
 
