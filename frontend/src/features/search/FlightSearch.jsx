@@ -271,6 +271,7 @@ const styles = {
   inputGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
   input: { padding: '10px', borderRadius: '6px', border: '1px solid #ced4da', fontSize: '1rem' },
   searchBtn: { padding: '10px 20px', backgroundColor: '#e01933', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
+  required: { color: '#e01933', marginLeft: '4px' },
   
   flightCard: { 
     display: 'flex', 
