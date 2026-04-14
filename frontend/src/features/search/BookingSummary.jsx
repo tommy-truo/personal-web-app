@@ -42,10 +42,49 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
         bookingData={bookingData}
         passengersNumber={passengersNumber}
         userID={userID}
-        onBack={() => setIsCheckout(false)}
       />
     );
   }
+
+  const handleBeginCheckout = async () => {
+    // 1. Flatten the bookingData for the API
+    // bookingData looks like: { flightId: { seatId: { passengerObj } } }
+    const tickets = [];
+    
+    Object.keys(bookingData).forEach(flightId => {
+      const flightSeats = bookingData[flightId];
+      Object.keys(flightSeats).forEach(seatId => {
+        const passenger = flightSeats[seatId];
+        tickets.push({
+          flightInstanceID: parseInt(flightId),
+          seatID: parseInt(seatId),
+          passengerID: passenger.passengerId,
+          price: passenger.seatPrice // We stored this in SeatSelection!
+        });
+      });
+    });
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/bookings/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerID: userID, tickets })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Booking failed');
+      }
+
+      const { bookingID } = await response.json();
+      
+      // 2. Only now proceed to Checkout UI, passing the new ID
+      setIsCheckout(true); 
+      // You might want to pass bookingID to the Checkout component here
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   return (
     <div style={styles.pageLayout}>
@@ -138,8 +177,8 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
         </div>
 
         {isSeatsDone && isPassengersDone && (
-          <button style={styles.finalBookBtn} onClick={() => setIsCheckout(true)}>
-            Review & Checkout
+          <button style={styles.finalBookBtn} onClick={handleBeginCheckout}>
+            Confirm Details & Checkout
           </button>
         )}
       </div>
