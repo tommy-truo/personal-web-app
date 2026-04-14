@@ -117,7 +117,7 @@ const FlightSearch = ({ userID }) => {
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '1100px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1>{isSelectingReturn ? 'Select Return Flight' : 'Search Flights'}</h1>
+        <h1 style={{ color: '#2d3748'}}>{isSelectingReturn ? 'Select Return Flight' : 'Search Flights'}</h1>
         {selectedFlights.length > 0 && (
           <button onClick={handleBack} style={{ padding: '8px 16px', cursor: 'pointer', borderRadius: '4px', color: '#007bff' }}>← Back to Search</button>
         )}
