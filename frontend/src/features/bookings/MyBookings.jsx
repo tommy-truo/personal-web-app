@@ -178,6 +178,7 @@ const getStatusStyle = (status) => {
 };
 
 const styles = {
+  centerMsg: { textAlign: 'center', padding: '50px' },
   container: { maxWidth: '850px', margin: '0 auto', padding: '40px 20px', fontFamily: 'Inter, sans-serif' },
   header: { marginBottom: '30px' },
   list: { display: 'flex', flexDirection: 'column', gap: '25px' },
