@@ -35,7 +35,7 @@ const PassengerDashboard = ({userID, onLogout}) => {
             className={`nav-button ${activeTab === 'bookings' ? 'active' : ''}`}
             onClick={() => setActiveTab('bookings')}
           >
-            My Bookings
+            My Trips
           </button>
           
           <button 
