@@ -6,13 +6,45 @@ const MyBookings = ({ userID, onNavigate }) => {
   const [error, setError] = useState(null);
   const [expandedBooking, setExpandedBooking] = useState(null);
 
+  const limitCheckInDate = true;
+
   const url = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     fetch(`${url}/api/bookings/passenger/${userID}`)
       .then(res => res.json())
-      .then(data => { setBookings(data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(data => {
+        const now = new Date();
+
+        // Filter and Process Bookings
+        const filteredAndProcessed = data
+          .filter(booking => {
+            // 1. Identify the latest flight by arrival time
+            if (!booking.flights || booking.flights.length === 0) return false;
+            
+            // We sort or simply find the maximum arrival time among all flights in this booking
+            const latestArrival = Math.max(
+              ...booking.flights.map(f => new Date(f.arrival.time).getTime())
+            );
+
+            // 2. Only keep bookings where the latest arrival is in the future
+            return latestArrival >= now.getTime();
+          })
+          .map(booking => {
+            // 3. Mark as Expired if pending and payment window closed (UX only)
+            if (booking.expires && new Date(booking.expires) < now && booking.status === 'Pending') {
+              return { ...booking, status: 'Expired' };
+            }
+            return booking;
+          });
+
+        setBookings(filteredAndProcessed);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+        setError("Could not load bookings.");
+      });
   }, [userID]);
 
   // 2. Handle Full Booking Cancellation
@@ -34,6 +66,20 @@ const MyBookings = ({ userID, onNavigate }) => {
   // 3. Handle Individual Ticket Check-in
   const handleTicketCheckIn = async (bookingID, ticketID) => {
     try {
+      const booking = bookings.find(b => b.id === bookingID);
+      const flight = booking?.flights.find(f => f.tickets.some(t => t.id === ticketID));
+      if (limitCheckInDate === true && flight) {
+        const departureDate = new Date(flight.departure.time);
+        const now = new Date();
+        const diffInHours = (departureDate - now) / (1000 * 60 * 60);
+
+        // check flight departure date and only allow ticket check in up to 24 hours before departure if limitCheckInDate is true
+        if (diffInHours > 24) {
+          alert("Check-in is only available up to 24 hours before flight departure.");
+          return;
+        }
+      }
+      
       const response = await fetch(`${url}/api/bookings/tickets/${ticketID}/check-in`, {
         method: 'PATCH'
       });
@@ -43,7 +89,10 @@ const MyBookings = ({ userID, onNavigate }) => {
           if (b.id === bookingID) {
             return {
               ...b,
-              tickets: b.tickets.map(t => t.id === ticketID ? { ...t, checkedIn: true } : t)
+              flights: b.flights.map(f => ({
+                ...f,
+                tickets: f.tickets.map(t => t.id === ticketID ? { ...t, checkedIn: true } : t)
+              }))
             };
           }
           return b;
@@ -64,13 +113,20 @@ const MyBookings = ({ userID, onNavigate }) => {
       });
 
       if (response.ok) {
-        setBookings(prevBookings => prevBookings.map(b => {
-          if (b.id === bookingID) {
-            const updatedTickets = b.tickets.filter(t => t.id !== ticketID);
-            return { ...b, tickets: updatedTickets };
-          }
-          return b;
-        }).filter(b => b.tickets.length > 0)); 
+        setBookings(prevBookings => {
+          return prevBookings.map(b => {
+            if (b.id === bookingID) {
+              // Update the tickets inside each flight leg specifically
+              const updatedFlights = b.flights.map(f => ({
+                ...f,
+                tickets: f.tickets.filter(t => t.id !== ticketID)
+              })).filter(f => f.tickets.length > 0); 
+
+              return { ...b, flights: updatedFlights };
+            }
+            return b;
+          }).filter(b => b.flights && b.flights.length > 0); 
+        });
       }
     } catch (err) {
       alert("Failed to remove ticket.");
@@ -91,7 +147,7 @@ const MyBookings = ({ userID, onNavigate }) => {
           <div key={booking.id} style={styles.card}>
             {/* Header: Booking ID and Global Status */}
             <div style={styles.cardHeader}>
-              <span style={styles.idLabel}>CONFIRMATION: #{booking.id}</span>
+              <span style={styles.idLabel}>BOOKING #B{booking.id}{Math.floor(booking.id/2) + 3}</span>
               <div style={{ ...styles.badge, ...getStatusStyle(booking.status) }}>
                 {booking.status}
               </div>
@@ -101,13 +157,22 @@ const MyBookings = ({ userID, onNavigate }) => {
             <div style={styles.itinerarySummary}>
               {booking.flights.map((f, idx) => (
                 <div key={f.instanceId} style={styles.flightLeg}>
-                  <div style={styles.legBadge}>{idx === 0 ? 'Departure' : 'Return'}</div>
+                  <div style={styles.legBadge}>{idx === 0 ? 'OUTBOUND' : 'RETURN'}</div>
                   <div style={styles.legMain}>
                     <div style={styles.routeText}>
                       {f.departure.city} ({f.departure.iata}) ➔ {f.arrival.city} ({f.arrival.iata})
                     </div>
-                    <div style={styles.dateSubtext}>
+                    <div style={{...styles.dateSubtext}}>
+                      Departs:
+                    </div>
+                    <div style={{...styles.dateSubtext, fontWeight: 'bold'}}>
                       {new Date(f.departure.time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    <div style={{...styles.dateSubtext}}>
+                      Arrives:
+                    </div>
+                    <div style={{...styles.dateSubtext, fontWeight: 'bold'}}>
+                      {new Date(f.arrival.time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                   <div style={styles.flightNum}>Flight {f.number}</div>
@@ -144,8 +209,14 @@ const MyBookings = ({ userID, onNavigate }) => {
                           {t.checkedIn ? (
                             <span style={styles.checkedLabel}>✓ Checked In</span>
                           ) : (
-                            <button style={styles.checkInBtn}>Check In</button>
+                            <button style={styles.checkInBtn} onClick={() => handleTicketCheckIn(booking.id, t.id)}>Check In</button>
                           )}
+                          <button 
+                            style={styles.cancelTicketLink} 
+                            onClick={() => handleTicketDelete(booking.id, t.id)}
+                            >
+                            Cancel Ticket
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -202,6 +273,7 @@ const styles = {
   ticketRow: { backgroundColor: 'white', padding: '15px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', marginBottom: '8px', border: '1px solid #edf2f7' },
   sub: { fontSize: '0.8rem', color: '#718096' },
   checkInBtn: { backgroundColor: '#48bb78', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', cursor: 'pointer' },
+  cancelTicketLink: { background: 'none', border: 'none', color: '#e53e3e', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' },
   checkedLabel: { color: '#48bb78', fontWeight: 'bold', fontSize: '0.85rem' },
   footerAction: { marginTop: '40px', textAlign: 'center', padding: '30px', borderTop: '1px dashed #e2e8f0' },
   bookTripBtn: { display: 'inline-block', backgroundColor: '#3182ce', color: 'white', border: 'none', cursor: 'pointer',textDecoration: 'none', padding: '12px 28px', borderRadius: '8px', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(49, 130, 206, 0.3)' }
