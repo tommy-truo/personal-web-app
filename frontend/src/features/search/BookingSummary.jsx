@@ -9,9 +9,12 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
   const [bookingData, setBookingData] = useState({}); 
   const [activeFlightForSeats, setActiveFlightForSeats] = useState(null);
   const [isCheckout, setIsCheckout] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const isPassengersDone = assignedPassengers.length === parseInt(passengersNumber);
   const isSeatsDone = Object.keys(bookingData).length === selectedFlights.length;
+
+  const checkoutButtonText = isProcessing ? "Proceeding to Checkout..." : "Confirm Details & Checkout";
 
   const formatDateTime = (dateString) => {
     return new Date(dateString).toLocaleString([], { 
@@ -47,6 +50,8 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
   }
 
   const handleBeginCheckout = async () => {
+    setIsProcessing(true);
+    
     // 1. Flatten the bookingData for the API
     // bookingData looks like: { flightId: { seatId: { passengerObj } } }
     const tickets = [];
@@ -177,8 +182,16 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
         </div>
 
         {isSeatsDone && isPassengersDone && (
-          <button style={styles.finalBookBtn} onClick={handleBeginCheckout}>
-            Confirm Details & Checkout
+          <button 
+            style={{
+              ...styles.finalBookBtn,
+              backgroundColor: isProcessing ? '#a0aec0' : '#28a745',
+              cursor: isProcessing ? 'not-allowed' : 'pointer'
+            }}
+            onClick={handleBeginCheckout}
+            disabled={isProcessing}
+          >
+            {checkoutButtonText}
           </button>
         )}
       </div>
@@ -229,7 +242,7 @@ const styles = {
   flightRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' },
   selectBtn: { backgroundColor: '#007bff', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   editBtn: { backgroundColor: '#e6fffa', color: '#2c7a7b', border: '1px solid #2c7a7b', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer' },
-  finalBookBtn: { width: '100%', padding: '18px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', marginTop: '20px' },
+  finalBookBtn: { width: '100%', padding: '18px', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '20px', transition: 'background-color 0.2s ease' },
   
   priceRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '12px' },
   hr: { border: '0', borderTop: '1px solid #ddd', margin: '20px 0' },
