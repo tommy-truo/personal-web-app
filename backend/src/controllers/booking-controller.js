@@ -33,25 +33,37 @@ export const createPendingBooking = async (req, res) => {
     }
 };
 
-// POST /api/bookings/:bookingID/tickets
-export const addTicketsToBooking = async (req, res) => {
+// PATCH /api/bookings/:bookingID/confirm
+export const confirmBooking = async (req, res) => {
     try {
         const { bookingID } = req.params;
-        const { tickets } = req.body;
-
-        const ticketIDs = await BookingModel.addTickets({ bookingID, tickets });
-        
-        res.status(200).json({ 
-            message: "Tickets added to booking.", 
-            ticketIDs 
-        });
-    } catch (err) {
-        if (err.message === "Seat is no longer available.") {
-            return res.status(409).json({ error: err.message });
+        if (!bookingID) {
+            return res.status(400).json({ error: "Booking ID is required." });
         }
-        res.status(500).json({ error: err.message || "Failed to add tickets." });
+
+        await BookingModel.confirmBooking(bookingID);
+
+        res.status(200).json({ mesage: "Booking confirmation successful." });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to update booking status." });
     }
-};
+}
+
+// PATCH /api/bookings/:bookingID/expire
+export const expireBooking = async (req, res) => {
+    try {
+        const { bookingID } = req.params;
+        if (!bookingID) {
+            return res.status(400).json({ error: "Booking ID is required." });
+        }
+
+        await BookingModel.expireBooking(bookingID);
+
+        res.status(200).json({ mesage: "Booking expiration successful." });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to update booking status." });
+    }
+}
 
 // PATCH /api/tickets/:ticketID/check-in
 export const checkInTicket = async (req, res) => {
@@ -89,11 +101,10 @@ export const deleteTicket = async (req, res) => {
 export const cancelBooking = async (req, res) => {
     try {
         const { bookingID } = req.params;
-        const ticketsRemoved = await BookingModel.cancelBooking(bookingID);
+        await BookingModel.cancelBooking(bookingID);
 
         res.status(200).json({ 
-            message: "Booking cancelled and seats released.", 
-            count: ticketsRemoved 
+            message: "Booking cancelled and seats released."
         });
     } catch (err) {
         res.status(500).json({ error: "Failed to cancel booking." });

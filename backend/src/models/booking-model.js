@@ -10,6 +10,7 @@ export async function getPassengerBookings(ownerID) {
                 b.booking_id,
                 bs.status_name AS booking_status,
                 b.created_datetime,
+                b.expires_datetime,
                 t.ticket_id,
                 t.checked_in,
                 bg.group_name,
@@ -19,8 +20,14 @@ export async function getPassengerBookings(ownerID) {
                 fir.reason_name AS status_reason,
                 depA.city AS dep_city, depA.country AS dep_country, depA.iata AS dep_iata,
                 arrA.city AS arr_city, arrA.country AS arr_country, arrA.iata AS arr_iata,
-                fi.scheduled_departure_datetime,
-                fi.scheduled_arrival_datetime,
+                CASE
+                    WHEN fs.status_name = 'Delayed' THEN fi.actual_departure_datetime
+                    ELSE fi.scheduled_departure_datetime
+                END AS scheduled_departure_datetime,
+                CASE
+                    WHEN fs.status_name = 'Delayed' THEN fi.actual_arrival_datetime
+                    ELSE fi.scheduled_arrival_datetime
+                END AS scheduled_arrival_datetime,
                 p.first_name, p.last_name,
                 s.seat_row, s.column_letter
             FROM bookings AS b
@@ -41,7 +48,9 @@ export async function getPassengerBookings(ownerID) {
             JOIN terminals AS arrT ON arrG.terminal_id = arrT.terminal_id
             JOIN airports AS arrA ON arrT.airport_id = arrA.airport_id
             JOIN account_passengers AS ap ON ap.passenger_id = b.booking_owner_passenger_id
-            WHERE ap.account_id = ?
+            WHERE 
+                ap.account_id = ?
+                AND scheduled_arrival_datetime >= (NOW() - INTERVAL 24 HOUR)
             ORDER BY b.created_datetime DESC, fi.scheduled_departure_datetime ASC;
         `;
 
@@ -54,6 +63,7 @@ export async function getPassengerBookings(ownerID) {
                     id: row.booking_id,
                     status: row.booking_status,
                     created: row.created_datetime,
+                    expires: row.expires_datetime,
                     flights: {} // Use an object here to group by flight_instance_id
                 };
             }
@@ -164,10 +174,13 @@ export async function createPendingBooking(args = {}) {
 
         // 1. CREATE THE MASTER BOOKING
         const createBookingStatement = `
-            INSERT INTO bookings (booking_owner_passenger_id, booking_status_id) 
+            INSERT INTO bookings (booking_owner_passenger_id, booking_status_id, created_datetime, last_updated_datetime, expires_datetime) 
             VALUES (
                 (SELECT passenger_id FROM account_passengers WHERE account_id = ? AND is_primary = 1 LIMIT 1),
-                (SELECT booking_status_id FROM booking_statuses WHERE status_name = 'Pending' LIMIT 1)
+                (SELECT booking_status_id FROM booking_statuses WHERE status_name = 'Pending' LIMIT 1),
+                NOW(),
+                NOW(),
+                (NOW() + INTERVAL 15 MINUTE)
             )
         `;
         const [newBooking] = await conn.query(createBookingStatement, [ownerID]);
@@ -195,12 +208,10 @@ export async function createPendingBooking(args = {}) {
             const reserveSeatsStatement = `
                 UPDATE flight_seats
                 SET 
-                    status_id = (SELECT flight_seat_status_id FROM flight_seat_statuses WHERE status_name = 'Reserved' LIMIT 1),
-                    reservation_expiration_datetime = NOW() + INTERVAL 20 MINUTE,
-                    reservation_owner_passenger_id = (SELECT passenger_id FROM account_passengers WHERE account_id = ? AND is_primary = 1 LIMIT 1)
+                    status_id = (SELECT flight_seat_status_id FROM flight_seat_statuses WHERE status_name = 'Reserved' LIMIT 1)
                 WHERE flight_instance_id = ? AND seat_id = ?;
             `;
-            await conn.query(reserveSeatsStatement, [ownerID, flightInstanceID, seatID]);
+            await conn.query(reserveSeatsStatement, [flightInstanceID, seatID]);
 
             // Insert Ticket
             const createTicketsStatement = `
@@ -231,15 +242,62 @@ export async function createPendingBooking(args = {}) {
 }
 
 export async function confirmBooking(bookingID) {
-    const conn = await pool.getConnection();
-
     try {
-        //
+        if (!bookingID) {throw new Error("booking ID required");}
+        
+        const confirmQuery = `
+            UPDATE bookings AS b
+            SET 
+                booking_status_id = (SELECT booking_status_id FROM booking_statuses WHERE status_name = 'Confirmed' LIMIT 1),
+                last_updated_datetime = NOW()
+            WHERE booking_id = ?
+        `;
+        await pool.query(confirmQuery, [bookingID]);
+
     } catch (err) {
-        await conn.rollback();
+        console.error("Database Error in confirmBooking");
         throw err;
-    } finally {
-        conn.release()
+    }
+}
+
+export async function expireBooking(bookingID) {
+    try {
+        if (!bookingID) {throw new Error("booking ID required");}
+        
+        const confirmQuery = `
+            UPDATE bookings AS b
+            SET 
+                booking_status_id = (SELECT booking_status_id FROM booking_statuses WHERE status_name = 'Expired' LIMIT 1),
+                last_updated_datetime = NOW()
+            WHERE booking_id = ?
+        `;
+        await pool.query(confirmQuery, [bookingID]);
+
+    } catch (err) {
+        console.error("Database Error in expireBooking:");
+        throw err;
+    }
+}
+
+// Cancels booking
+export async function cancelBooking(bookingID) {
+    try {
+        // Set the booking status to 'Cancelled'
+        const updateBookingQuery = `
+            UPDATE bookings
+            SET booking_status_id = (
+                SELECT booking_status_id 
+                FROM booking_statuses 
+                WHERE status_name = 'Cancelled' 
+                LIMIT 1
+            ), last_updated_datetime = NOW()
+            WHERE booking_id = ?
+        `;
+        await pool.query(updateBookingQuery, [bookingID]);
+
+    } catch (err) {
+        console.error("Database Error in cancelBooking:", err);
+        throw err;
     }
 }
 
@@ -292,55 +350,26 @@ export async function deleteTicket(ticketID) {
     }
 }
 
-// Cancels booking and deletes all related tickets
-// Returns the number of tickets removed
-export async function cancelBooking(bookingID) {
-    const conn = await pool.getConnection();
-
+export async function getBookingsToExpire() {
     try {
-        await conn.beginTransaction();
-
-        // Reset all flight_seats associated with this booking to 'Available'
-        const resetSeatsQuery = `
-            UPDATE flight_seats AS fs
-            JOIN tickets AS t 
-                ON t.flight_instance_id = fs.flight_instance_id 
-                AND t.seat_id = fs.seat_id
-            JOIN flight_seat_statuses AS fss 
-                ON fss.status_name = 'Available'
-            SET fs.status_id = fss.flight_seat_status_id
-            WHERE t.booking_id = ?
+        const fetchQuery = `
+            SELECT booking_id
+            FROM bookings
+            WHERE
+                expires_datetime <= NOW()
+                AND booking_status_id = (
+                    SELECT booking_status_id
+                    FROM booking_statuses
+                    WHERE 
+                        status_name = 'Pending')
+            ;
         `;
-        await conn.query(resetSeatsQuery, [bookingID]);
 
-        // Delete all tickets related to this booking
-        const deleteTicketsQuery = `
-            DELETE FROM tickets 
-            WHERE booking_id = ?
-        `;
-        const [ticketResult] = await conn.query(deleteTicketsQuery, [bookingID]);
+        const [rows] = await pool.query(fetchQuery);
 
-        // Set the booking status to 'Cancelled'
-        const updateBookingQuery = `
-            UPDATE bookings
-            SET booking_status_id = (
-                SELECT booking_status_id 
-                FROM booking_statuses 
-                WHERE status_name = 'Cancelled' 
-                LIMIT 1
-            ), last_updated_datetime = NOW()
-            WHERE booking_id = ?
-        `;
-        await conn.query(updateBookingQuery, [bookingID]);
-
-        await conn.commit();
-        return ticketResult.affectedRows;
-
+        return rows;
     } catch (err) {
-        await conn.rollback();
-        console.error("Database Error in cancelBooking:", err);
+        console.error("Database Error in getBookingsToExpire");
         throw err;
-    } finally {
-        conn.release();
     }
 }
