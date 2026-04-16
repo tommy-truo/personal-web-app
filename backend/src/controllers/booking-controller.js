@@ -24,6 +24,9 @@ export const getCheckoutInfo = async (req, res) => {
         }
 
         const info = await BookingModel.getCheckoutInfo(bookingID);
+        if (!info) {
+            throw new Error("Failed to retrieve booking information for checkout. ");
+        }
         res.status(200).json(info);
     } catch (err) {
         res.status(500).json({ error: "Failed to retrieve booking information for checkout. "});
