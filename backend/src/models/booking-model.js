@@ -182,8 +182,8 @@ export async function getCheckoutInfo(bookingID) {
                 acc[flightId] = {
                     flightInstanceId: flightId,
                     flightNumber: row.flight_number,
-                    departure: { city: row.dep_city, iata: row.dep_iata, time: row.departure_datetime },
-                    arrival: { city: row.arr_city, iata: row.arr_iata, time: row.arrival_datetime },
+                    departure: { city: row.depA_city, iata: row.depA_iata, time: row.departure_datetime },
+                    arrival: { city: row.arrA_city, iata: row.arrA_iata, time: row.arrival_datetime },
                     tickets: []
                 };
             }
