@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import Checkout from '../search/Checkout';
 
 const MyBookings = ({ userID, onNavigate }) => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedBooking, setExpandedBooking] = useState(null);
+  const [isCheckout, setIsCheckout] = useState(false);
+  const [checkoutBookingID, setCheckoutBookingID] = useState(null);
 
   const limitCheckInDate = true;
-
+  
+  // Use a safer check for the environment variable to avoid compilation errors
   const url = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
@@ -19,16 +23,15 @@ const MyBookings = ({ userID, onNavigate }) => {
         // Filter and Process Bookings
         const filteredAndProcessed = data
           .filter(booking => {
-            // 1. Identify the latest flight by arrival time
             if (!booking.flights || booking.flights.length === 0) return false;
             
-            // We sort or simply find the maximum arrival time among all flights in this booking
+            // Find the maximum arrival time among all flights in this booking
             const latestArrival = Math.max(
               ...booking.flights.map(f => new Date(f.arrival.time).getTime())
             );
 
-            // 2. Only keep bookings where the latest arrival is in the future
-            return latestArrival >= now.getTime();
+            // Keep bookings where the latest arrival is in the future OR it's pending (needs payment)
+            return latestArrival >= now.getTime() || booking.status === 'Pending';
           });
 
         setBookings(filteredAndProcessed);
@@ -38,9 +41,8 @@ const MyBookings = ({ userID, onNavigate }) => {
         setLoading(false);
         setError("Could not load bookings.");
       });
-  }, [userID]);
+  }, [userID, url]);
 
-  // 2. Handle Full Booking Cancellation
   const handleCancelBooking = async (bookingID) => {
     if (!window.confirm("Are you sure you want to cancel this entire booking? All seats will be released.")) return;
     
@@ -56,7 +58,6 @@ const MyBookings = ({ userID, onNavigate }) => {
     }
   };
 
-  // 3. Handle Individual Ticket Check-in
   const handleTicketCheckIn = async (bookingID, ticketID) => {
     try {
       const booking = bookings.find(b => b.id === bookingID);
@@ -66,7 +67,6 @@ const MyBookings = ({ userID, onNavigate }) => {
         const now = new Date();
         const diffInHours = (departureDate - now) / (1000 * 60 * 60);
 
-        // check flight departure date and only allow ticket check in up to 24 hours before departure if limitCheckInDate is true
         if (diffInHours > 24) {
           alert("Check-in is only available up to 24 hours before flight departure.");
           return;
@@ -96,12 +96,11 @@ const MyBookings = ({ userID, onNavigate }) => {
     }
   };
 
-  // 4. Handle Individual Ticket Deletion
   const handleTicketDelete = async (bookingID, ticketID) => {
     if (!window.confirm("Cancel this ticket? This cannot be undone.")) return;
 
     try {
-      const response = await fetch(`${url}/api/bookings/tickets/${ticketID}`, {
+      const response = await fetch(`${url}/api/bookings/${bookingID}/tickets/${ticketID}`, {
         method: 'DELETE'
       });
 
@@ -109,7 +108,6 @@ const MyBookings = ({ userID, onNavigate }) => {
         setBookings(prevBookings => {
           return prevBookings.map(b => {
             if (b.id === bookingID) {
-              // Update the tickets inside each flight leg specifically
               const updatedFlights = b.flights.map(f => ({
                 ...f,
                 tickets: f.tickets.filter(t => t.id !== ticketID)
@@ -126,8 +124,22 @@ const MyBookings = ({ userID, onNavigate }) => {
     }
   };
 
+  const handleCheckoutClick = (bookingID) => {
+    setCheckoutBookingID(bookingID);
+    setIsCheckout(true);
+  }
+
+  const handleCheckoutBack = () => {
+    setIsCheckout(false);
+    setCheckoutBookingID(null);
+  }
+
   if (loading) return <div style={styles.centerMsg}>Loading your trips...</div>;
   if (error) return <div style={{ ...styles.centerMsg, color: 'red' }}>Error: {error}</div>;
+
+  if (isCheckout) {
+    return <Checkout bookingID={checkoutBookingID} onBack={handleCheckoutBack} />;
+  }
 
   return (
     <div style={styles.container}>
@@ -138,7 +150,6 @@ const MyBookings = ({ userID, onNavigate }) => {
       <div style={styles.list}>
         {bookings.map((booking) => (
           <div key={booking.id} style={styles.card}>
-            {/* Header: Booking ID and Global Status */}
             <div style={styles.cardHeader}>
               <span style={styles.idLabel}>BOOKING #B{Math.floor(booking.id/2 + 3)%10}{booking.id}{Math.floor((booking.id/2 + 3)/10)}</span>
               <div style={{ ...styles.badge, ...getStatusStyle(booking.status) }}>
@@ -146,7 +157,6 @@ const MyBookings = ({ userID, onNavigate }) => {
               </div>
             </div>
 
-            {/* Itinerary Summary (The "Round Trip" view) */}
             <div style={styles.itinerarySummary}>
               {booking.flights.map((f, idx) => (
                 <div key={f.instanceId} style={styles.flightLeg}>
@@ -164,21 +174,29 @@ const MyBookings = ({ userID, onNavigate }) => {
               ))}
             </div>
 
-            {/* Footer Actions */}
             <div style={styles.cardFooter}>
-              <button 
-                onClick={() => setExpandedBooking(expandedBooking === booking.id ? null : booking.id)}
-                style={styles.detailsBtn}
-              >
-                {expandedBooking === booking.id ? 'Close Details' : 'View Details'}
-              </button>
+              {booking.status === 'Pending' ? (
+                <button 
+                  onClick={() => handleCheckoutClick(booking.id)} 
+                  style={styles.checkoutBtn}
+                >
+                  Complete Checkout
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setExpandedBooking(expandedBooking === booking.id ? null : booking.id)}
+                  style={styles.detailsBtn}
+                >
+                  {expandedBooking === booking.id ? 'Hide Details' : 'View Details'}
+                </button>
+              )}
+              
               <button style={styles.cancelLink} onClick={() => {handleCancelBooking(booking.id)}}>
                 Cancel Booking
               </button>
             </div>
 
-            {/* Expanded Content: Tickets per Flight */}
-            {expandedBooking === booking.id && (
+            {expandedBooking === booking.id && booking.status !== 'Pending' && (
               <div style={styles.expandedContent}>
                 {booking.flights.map(f => (
                   <div key={f.instanceId} style={styles.flightDetailSection}>
@@ -212,16 +230,15 @@ const MyBookings = ({ userID, onNavigate }) => {
         ))}
       </div>
 
-      {/* FOOTER ACTION: BOOK NEW TRIP */}
-            <div style={styles.footerAction}>
-              <p style={{ color: '#718096', marginBottom: '15px' }}>Ready for your next adventure?</p>
-              <button 
-                onClick={() => onNavigate('search')} 
-                style={styles.bookTripBtn}
-              >
-                + Book a New Trip
-              </button>
-            </div>
+      <div style={styles.footerAction}>
+        <p style={{ color: '#718096', marginBottom: '15px' }}>Ready for your next adventure?</p>
+        <button 
+          onClick={() => onNavigate('search')} 
+          style={styles.bookTripBtn}
+        >
+          + Book a New Trip
+        </button>
+      </div>
     </div>
   );
 };
@@ -250,6 +267,7 @@ const styles = {
   flightNum: { fontSize: '0.85rem', color: '#a0aec0', fontWeight: '500' },
   cardFooter: { padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f7fafc' },
   detailsBtn: { backgroundColor: '#3182ce', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
+  checkoutBtn: { backgroundColor: '#e01933', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
   cancelLink: { background: 'none', border: 'none', color: '#e53e3e', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' },
   expandedContent: { backgroundColor: '#f8fafc', padding: '20px' },
   flightDetailSection: { marginBottom: '20px' },
