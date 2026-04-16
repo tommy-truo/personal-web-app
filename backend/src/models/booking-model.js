@@ -279,17 +279,19 @@ export async function createPendingBooking(args = {}) {
         await conn.beginTransaction();
 
         // 1. CREATE THE MASTER BOOKING
+        const now = new Date();
+        const expires = new Date(now.getTime() + (15 * 60000));
         const createBookingStatement = `
             INSERT INTO bookings (booking_owner_passenger_id, booking_status_id, created_datetime, last_updated_datetime, expires_datetime) 
             VALUES (
                 (SELECT passenger_id FROM account_passengers WHERE account_id = ? AND is_primary = 1 LIMIT 1),
                 (SELECT booking_status_id FROM booking_statuses WHERE status_name = 'Pending' LIMIT 1),
-                NOW(),
-                NOW(),
-                (NOW() + INTERVAL 15 MINUTE)
+                ?,
+                ?,
+                ?
             )
         `;
-        const [newBooking] = await conn.query(createBookingStatement, [ownerID]);
+        const [newBooking] = await conn.query(createBookingStatement, [ownerID, now, now, expires]);
         const newBookingID = newBooking.insertId;
 
         // 2. PROCESS TICKETS (Grouped by flight to handle locking/updates efficiently)
@@ -351,14 +353,15 @@ export async function confirmBooking(bookingID) {
     try {
         if (!bookingID) {throw new Error("booking ID required");}
         
+        const now = new Date();
         const confirmQuery = `
             UPDATE bookings AS b
             SET 
                 booking_status_id = (SELECT booking_status_id FROM booking_statuses WHERE status_name = 'Confirmed' LIMIT 1),
-                last_updated_datetime = NOW()
+                last_updated_datetime = ?
             WHERE booking_id = ?
         `;
-        await pool.query(confirmQuery, [bookingID]);
+        await pool.query(confirmQuery, [now, bookingID]);
 
     } catch (err) {
         console.error("Database Error in confirmBooking");
@@ -370,14 +373,15 @@ export async function expireBooking(bookingID) {
     try {
         if (!bookingID) {throw new Error("booking ID required");}
         
+        const now = new Date();
         const confirmQuery = `
             UPDATE bookings AS b
             SET 
                 booking_status_id = (SELECT booking_status_id FROM booking_statuses WHERE status_name = 'Expired' LIMIT 1),
-                last_updated_datetime = NOW()
+                last_updated_datetime = ?
             WHERE booking_id = ?
         `;
-        await pool.query(confirmQuery, [bookingID]);
+        await pool.query(confirmQuery, [now, bookingID]);
 
     } catch (err) {
         console.error("Database Error in expireBooking:");
@@ -388,6 +392,7 @@ export async function expireBooking(bookingID) {
 // Cancels booking (refunds it, not actually cancel)
 export async function cancelBooking(bookingID) {
     try {
+        const now = new Date();
         const updateBookingQuery = `
             UPDATE bookings
             SET booking_status_id = (
@@ -395,10 +400,10 @@ export async function cancelBooking(bookingID) {
                 FROM booking_statuses 
                 WHERE status_name = 'Refunded' 
                 LIMIT 1
-            ), last_updated_datetime = NOW()
+            ), last_updated_datetime = ?
             WHERE booking_id = ?
         `;
-        await pool.query(updateBookingQuery, [bookingID]);
+        await pool.query(updateBookingQuery, [now, bookingID]);
 
     } catch (err) {
         console.error("Database Error in cancelBooking:", err);
@@ -436,6 +441,7 @@ export async function deleteTicket(bookingID, ticketID) {
 
         await conn.commit();
 
+        const now = new Date();
         const bookingStatement = `
             UPDATE bookings
             SET 
@@ -443,14 +449,14 @@ export async function deleteTicket(bookingID, ticketID) {
                     SELECT booking_status_id
                     FROM booking_statuses
                     WHERE status_name = 'Refunded'),
-                last_updated_datetime = NOW()
+                last_updated_datetime = ?
             WHERE 
                 booking_id = ?
                 AND (SELECT COUNT(*)
                     FROM tickets
                     WHERE booking_id = ?) = 0
         `;
-        await pool.query(bookingStatement, [bookingID, bookingID]);
+        await pool.query(bookingStatement, [now, bookingID, bookingID]);
 
         return ticketResult.affectedRows;
     } catch (err) {
@@ -464,11 +470,12 @@ export async function deleteTicket(bookingID, ticketID) {
 
 export async function getBookingsToExpire() {
     try {
+        const now = new Date();
         const fetchQuery = `
             SELECT booking_id
             FROM bookings
             WHERE
-                expires_datetime <= NOW()
+                expires_datetime <= ?
                 AND booking_status_id = (
                     SELECT booking_status_id
                     FROM booking_statuses
@@ -477,7 +484,7 @@ export async function getBookingsToExpire() {
             ;
         `;
 
-        const [rows] = await pool.query(fetchQuery);
+        const [rows] = await pool.query(fetchQuery, [now]);
 
         return rows;
     } catch (err) {
@@ -492,6 +499,7 @@ export async function createTransaction(bookingID, paymentMethod, transactionTyp
             throw new Error("Booking ID, Payment Method, and Transaction Type are required.");
         }
 
+        const now = new Date();
         const queryStatement = `
             INSERT INTO transactions (booking_id, payment_method_id, transaction_type_id, amount, transaction_datetime)
             SELECT 
@@ -499,14 +507,14 @@ export async function createTransaction(bookingID, paymentMethod, transactionTyp
                 pm.transaction_payment_method_id, 
                 tt.transaction_type_id,
                 ?,
-                NOW()
+                ?
             FROM transaction_payment_methods AS pm
             JOIN transaction_types AS tt
             WHERE pm.payment_method_name = ? 
                 AND tt.type_name = ?;
         `;
 
-        await pool.query(queryStatement, [bookingID, amount, paymentMethod, transactionType]);
+        await pool.query(queryStatement, [bookingID, amount, now, paymentMethod, transactionType]);
     } catch (err) {
         console.error("Database Error in createTransaction", err);
         throw err;

@@ -25,4 +25,7 @@ router.patch('/users/:userID/passengers/:passengerID', PassengerController.patch
 // DELETE /users/:userID/passengers/:passengerID
 router.delete('/users/:userID/passengers/:passengerID', PassengerController.unlinkPassenger);
 
+// PATCH /passengers/:passengerID/enroll
+router.patch('/:passengerID/enroll', PassengerController.enrollPassenger);
+
 export default router;

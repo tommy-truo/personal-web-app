@@ -16,7 +16,7 @@ router.get('/:bookingID/checkout', BookingController.getCheckoutInfo);
 // PATCH /api/bookings/:bookingID/confirm - Set booking status to 'Confirmed'
 router.patch('/:bookingID/confirm', BookingController.confirmBooking);
 
-// PATCH /api/bookings/:bookingID/confirm - Set booking status to 'Expired'
+// PATCH /api/bookings/:bookingID/expire - Set booking status to 'Expired'
 router.patch('/:bookingID/expire', BookingController.expireBooking);
 
 // DELETE /api/bookings/:bookingID - Cancel an entire booking and release seats
