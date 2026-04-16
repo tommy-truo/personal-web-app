@@ -15,6 +15,20 @@ export const getPassengerBookings = async (req, res) => {
     }
 };
 
+export const getCheckoutInfo = async (req, res) => {
+    try {
+        const { bookingID } = req.params;
+        if (!bookingID) {
+            return res.status(400).json({ error: "Booking ID is required. "});
+        }
+
+        const info = await BookingModel.getCheckoutInfo(bookingID);
+        res.status(200).json(info);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to retrieve booking information for checkout. "});
+    }
+}
+
 // POST /api/bookings
 export const createPendingBooking = async (req, res) => {
     try {

@@ -28,7 +28,7 @@ export async function getPassengerBookings(ownerID) {
                     WHEN fs.status_name = 'Delayed' THEN fi.actual_arrival_datetime
                     ELSE fi.scheduled_arrival_datetime
                 END AS scheduled_arrival_datetime,
-                p.first_name, p.last_name,
+                p.first_name, p.middle_initial, p.last_name,
                 s.seat_row, s.column_letter
             FROM bookings AS b
             JOIN booking_statuses AS bs ON b.booking_status_id = bs.booking_status_id
@@ -91,7 +91,7 @@ export async function getPassengerBookings(ownerID) {
             // 3. Add Ticket to the specific Flight
             acc[row.booking_id].flights[row.flight_instance_id].tickets.push({
                 id: row.ticket_id,
-                passenger: `${row.first_name} ${row.last_name}`,
+                passenger: `${row.first_name} ${row.middle_initial ? row.middle_initial + ". " : ""}${row.last_name}`,
                 seat: `${row.seat_row}${row.column_letter}`,
                 boardingGroup: row.group_name,
                 checkedIn: Boolean(row.checked_in)
@@ -105,6 +105,102 @@ export async function getPassengerBookings(ownerID) {
             ...b,
             flights: Object.values(b.flights)
         }));
+    } catch (err) {
+        throw err;
+    }
+}
+
+// Gets a booking info by its ID for checkout page
+export async function getCheckoutInfo(bookingID) {
+    try {
+        const query = `
+            SELECT
+                bs.booking_status,
+                b.expires_datetime,
+
+                owner.is_loyalty_member,
+                owner.loyalty_miles,
+
+                t.ticket_id,
+                t.ticket_price,
+
+                s.seat_row,
+                s.column_letter,
+
+                fi.flight_instance_id,
+
+                fr.flight_number,
+
+                depA.city,
+                depA.iata,
+
+                arrA.city,
+                arrA.iata,
+
+                CASE
+                    WHEN fs.status_name = 'Delayed' 
+                        THEN fi.actual_departure_datetime
+                    ELSE 
+                        fi.scheduled_departure_datetime
+                END AS departure_datetime,
+                CASE
+                    WHEN fs.status_name = 'Delayed' 
+                        THEN fi.actual_arrival_datetime
+                    ELSE 
+                        fi.scheduled_arrival_datetime
+                END AS arrival_datetime,
+            
+            FROM bookings AS b
+
+            JOIN booking_statuses AS bs ON b.booking_status_id = bs.booking_status_id
+            JOIN passengers AS owner ON b.booking_owner_passenger_id = owner.passenger_id
+
+            JOIN tickets AS t ON t.booking_id = b.booking_id
+
+            JOIN flight_seats AS fse 
+                ON t.flight_instance_id = fse.flight_instance_id AND t.seat_id = fse.seat_id
+
+            JOIN seats AS s ON fse.seat_id = s.seat_id
+
+            JOIN flight_instances AS fi ON fse.flight_instance_id = fi.flight_instance_id
+            JOIN flight_routes AS fr ON fi.flight_route_id = fr.flight_route_id
+
+            JOIN airports AS depA ON fr.departure_airport_id = depA.airport_id
+            JOIN airports AS arrA ON fr.arrival_airport_id = arrA.airport_id
+
+            WHERE b.booking_id = ?
+        `;
+
+        const [rows] = await pool.query(query, [bookingID]);
+        if (rows.length === 0) return null;
+
+        // Group rows by flight_instance_id
+        const grouped = rows.reduce((acc, row) => {
+            const flightId = row.flight_instance_id;
+            if (!acc[flightId]) {
+                acc[flightId] = {
+                    flightInstanceId: flightId,
+                    flightNumber: row.flight_number,
+                    departure: { city: row.dep_city, iata: row.dep_iata, time: row.departure_datetime },
+                    arrival: { city: row.arr_city, iata: row.arr_iata, time: row.arrival_datetime },
+                    tickets: []
+                };
+            }
+            acc[flightId].tickets.push({
+                ticketId: row.ticket_id,
+                price: parseFloat(row.ticket_price),
+                seatLabel: `${row.seat_row}${row.column_letter}`
+            });
+            return acc;
+        }, {});
+
+        return {
+            bookingID,
+            status: rows[0].booking_status,
+            expires: rows[0].expires_datetime,
+            loyalty: { isMember: rows[0].is_loyalty_member, miles: rows[0].loyalty_miles },
+            flights: Object.values(grouped)
+        };
     } catch (err) {
         throw err;
     }

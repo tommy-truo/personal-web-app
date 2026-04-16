@@ -11,6 +11,8 @@ router.post('/', BookingController.createPendingBooking);
 // GET /api/bookings/passenger/:ownerID - Get all bookings for a specific passenger owner
 router.get('/passenger/:ownerID', BookingController.getPassengerBookings);
 
+router.get('/:bookingID/checkout', BookingController.getCheckoutInfo);
+
 // PATCH /api/bookings/:bookingID/confirm - Set booking status to 'Confirmed'
 router.patch('/:bookingID/confirm', BookingController.confirmBooking);
 
@@ -21,6 +23,7 @@ router.patch('/:bookingID/expire', BookingController.expireBooking);
 router.delete('/:bookingID', BookingController.cancelBooking);
 
 // --- Ticket Management ---
+
 // PATCH /api/tickets/:ticketID/check-in - Check in a specific ticket
 router.patch('/tickets/:ticketID/check-in', BookingController.checkInTicket);
 
