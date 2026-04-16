@@ -115,7 +115,7 @@ export async function getCheckoutInfo(bookingID) {
     try {
         const query = `
             SELECT
-                bs.booking_status,
+                bs.status_name,
                 b.expires_datetime,
 
                 owner.is_loyalty_member,
@@ -164,11 +164,12 @@ export async function getCheckoutInfo(bookingID) {
 
             JOIN flight_instances AS fi ON fse.flight_instance_id = fi.flight_instance_id
             JOIN flight_routes AS fr ON fi.flight_route_id = fr.flight_route_id
+			JOIN flight_statuses AS fs ON fi.status_id = fs.flight_status_id
 
             JOIN airports AS depA ON fr.departure_airport_id = depA.airport_id
             JOIN airports AS arrA ON fr.arrival_airport_id = arrA.airport_id
 
-            WHERE b.booking_id = ?
+            WHERE b.booking_id = ?;
         `;
 
         const [rows] = await pool.query(query, [bookingID]);
