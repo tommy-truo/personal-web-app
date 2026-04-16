@@ -233,12 +233,12 @@ export async function unlinkPassenger(req, res) {
 // PATCH /api/passengers/:passengerID/enroll
 export async function enrollPassenger(req, res) {
     try {
-        const passengerID = req.params;
+        const { passengerID } = req.params;
         if (!passengerID) throw new Error("Passenger ID is required");
 
         await PassengerModel.enrollPassenger(passengerID);
 
-        return res.status(200);
+        return res.status(200).json({message: "Successfully enrolled"});
     } catch (err) {
         handleControllerError(res, err, "Controller Error in enrollPassenger");
     }
