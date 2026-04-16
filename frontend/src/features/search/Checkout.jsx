@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import CountdownTimer from './CountdownTimer';
 
 const Checkout = ({ bookingID, onBack = null }) => {
   const [booking, setBooking] = useState(null);
@@ -90,6 +91,37 @@ const Checkout = ({ bookingID, onBack = null }) => {
     }
   };
 
+  const handleTimeout = async () => {
+    // 1. Prevent multiple executions if the user clicks while it's processing
+    if (isProcessing) return; 
+    
+    setLoading(true);
+    setIsProcessing(true);
+
+    try {
+      // 2. Call the backend to update the booking status to 'Expired' or 'Cancelled'
+      const res = await fetch(`${url}/api/bookings/${bookingID}/expire`, {
+        method: 'PATCH', // Usually a PATCH or PUT for status updates
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!res.ok) {
+        // Log the error but continue to redirect the user
+        console.warn("Backend failed to expire booking, but session is over.");
+      }
+      
+      // 3. User Feedback
+      alert("The 15-minute booking window has expired. Your seat reservations have been released.");
+
+    } catch (err) {
+      console.error("Network error during expiration:", err);
+    } finally {
+      setLoading(false);
+      // 4. Force redirect to search or home
+      window.location.href = '/'; 
+    }
+  };
+
   if (loading) return <div style={styles.center}>Loading Checkout...</div>;
   if (!booking) return <div style={styles.center}>Booking not found.</div>;
 
@@ -126,6 +158,13 @@ const Checkout = ({ bookingID, onBack = null }) => {
           <p style={styles.bookingRef}>
             Booking: <strong>#B{Math.floor(bookingID / 2 + 3) % 10}{bookingID}{Math.floor((bookingID / 2 + 3) / 10)}</strong>
           </p>
+
+          <div style={styles.timerWrapper}>
+            <CountdownTimer 
+              expiryTimestamp={booking.expires.replace(' ', 'T')} 
+              onExpire={handleTimeout} 
+            />
+          </div>
           
           {booking.flights.map((flight, idx) => (
             <div key={idx} style={styles.card}>
@@ -202,7 +241,7 @@ const Checkout = ({ bookingID, onBack = null }) => {
             <span>${totalSubtotal.toFixed(2)}</span>
           </div>
           <div style={styles.priceRow}>
-            <span>Taxes & Fees:</span>
+            <span>Taxes, Fees, & Charges:</span>
             <span>${taxAmount.toFixed(2)}</span>
           </div>
 
@@ -235,12 +274,14 @@ const Checkout = ({ bookingID, onBack = null }) => {
             {isProcessing ? 'Processing...' : payWithMiles ? 'Redeem Miles' : 'Confirm & Pay'}
           </button>
 
-          <p style={styles.secureText}>
-            {payWithMiles 
-              ? "Miles will be deducted from your account immediately upon confirmation." 
-              : `You could earn ${Math.ceil(grandTotal * 2).toLocaleString()} Miles with this purchase.`
-            }
-          </p>
+          {booking.loyalty.isMember && (
+            <p style={styles.secureText}>
+              {payWithMiles
+                ? "Miles will be deducted from your account immediately upon confirmation." 
+                : `You could earn ${Math.ceil(grandTotal * 2).toLocaleString()} Miles with this purchase.`
+              }
+            </p>
+          )}
           <p style={styles.secureText}>
             By clicking 'Confirm & Pay', you agree to our Terms & Conditions, Privacy Policy, and Contract of Carriage.
           </p>
@@ -282,6 +323,12 @@ const styles = {
   divider: { borderTop: '1px solid #ddd', margin: '15px 0' },
   modalOverlay: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
   modalContent: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '400px', display: 'flex', flexDirection: 'column', gap: '15px' },
+  timerWrapper: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginBottom: '20px', // Adds space between the timer and the first flight card
+    width: '100%'
+  },
   input: { 
     padding: '12px', 
     borderRadius: '6px', 
