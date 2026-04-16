@@ -3,6 +3,7 @@ import '../App.css';
 import FlightSearch from '../features/search/FlightSearch';
 import Profile from '../features/profile/Profile';
 import MyBookings from '../features/bookings/MyBookings';
+import LoyaltyPortal from '../features/loyaltyProgram/LoyaltyPortal';
 
 const PassengerDashboard = ({userID, onLogout}) => {
   const [activeTab, setActiveTab] = useState('search');
@@ -44,6 +45,13 @@ const PassengerDashboard = ({userID, onLogout}) => {
           >
             Profile & Guests
           </button>
+
+          <button 
+            className={`nav-button ${activeTab === 'loyalty' ? 'active' : ''}`}
+            onClick={() => setActiveTab('loyalty')}
+          >
+            Loyalty Program
+          </button>
         </div>
 
         {/* Bottom Section */}
@@ -58,6 +66,7 @@ const PassengerDashboard = ({userID, onLogout}) => {
         {activeTab === 'search' && <FlightSearch userID={userID} />}
         {activeTab === 'bookings' && (<MyBookings userID={userID} onNavigate={handleNavigate} />)}
         {activeTab === 'profile' && <Profile userID={userID} />}
+        {activeTab === 'loyalty' && <LoyaltyPortal userID={userID} onNavigate={handleNavigate} />}
       </main>
     </div>
   );
