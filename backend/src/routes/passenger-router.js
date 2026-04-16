@@ -8,6 +8,9 @@ const router = express.Router({ mergeParams: true });
 // GET /users/:userID/passengers
 router.get('/users/:userID/passengers', PassengerController.getPassengersByUser);
 
+// GET /flights/:flightInstanceID
+router.get('/flights/:flightInstanceID', PassengerController.getPassengersByFlight);
+
 // POST /users/:userID/passengers
 router.post('/users/:userID/passengers', PassengerController.createAndLinkPassenger);
 
@@ -21,15 +24,5 @@ router.patch('/users/:userID/passengers/:passengerID', PassengerController.patch
 
 // DELETE /users/:userID/passengers/:passengerID
 router.delete('/users/:userID/passengers/:passengerID', PassengerController.unlinkPassenger);
-
-// (Leave at the Bottom) Redirect trailing slash URLs to non-trailing slash version
-router.use((req, res, next) => {
-    if (req.path.endsWith('/') && req.path.length > 1) {
-        const query = req.url.slice(req.path.length);
-        res.redirect(301, req.path.slice(0, -1) + query);
-    } else {
-        next();
-    }
-});
 
 export default router;

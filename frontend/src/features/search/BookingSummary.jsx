@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import PassengerSelection from './PassengerSelection';
 import SeatSelection from './SeatSelection';
 import Checkout from './Checkout';
@@ -11,13 +11,35 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
   const [isCheckout, setIsCheckout] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingID, setBookingID] = useState(null);
+  const [allOccupiedIds, setAllOccupiedIds] = useState([]);
+
+  const url = import.meta.env.VITE_API_URL;
+
+  // 1. Fetch occupied passengers for ALL selected flights
+  useEffect(() => {
+    const fetchAllOccupied = async () => {
+      try {
+        const promises = selectedFlights.map(f => 
+          fetch(`${url}/api/passengers/flights/${f.flightInstanceId}`).then(res => res.json())
+        );
+        
+        const results = await Promise.all(promises);
+        // Flatten all arrays and extract unique IDs
+        const flatIds = results.flat().map(p => p.passenger_id || p.passengerId);
+        setAllOccupiedIds([...new Set(flatIds)]);
+      } catch (err) {
+        console.error("Error fetching occupied passengers for itinerary:", err);
+      }
+    };
+
+    if (selectedFlights.length > 0) {
+      fetchAllOccupied();
+    }
+  }, [selectedFlights, url]);
 
   const isPassengersDone = assignedPassengers.length === parseInt(passengersNumber);
   const isSeatsDone = Object.keys(bookingData).length === selectedFlights.length;
-
   const checkoutButtonText = isProcessing ? "Proceeding to Checkout..." : "Confirm Details & Checkout";
-
-  const url = import.meta.env.VITE_API_URL;
 
   const formatDateTime = (dateString) => {
     return new Date(dateString).toLocaleString([], { 
@@ -42,9 +64,6 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
   
   const handleBeginCheckout = async () => {
     setIsProcessing(true);
-    
-    // 1. Flatten the bookingData for the API
-    // bookingData looks like: { flightId: { seatId: { passengerObj } } }
     const tickets = [];
     
     Object.keys(bookingData).forEach(flightId => {
@@ -69,11 +88,12 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
 
       if (response.ok) {
         const data = await response.json();
-        setBookingID(data.bookingID); // Store the ID
-        setIsCheckout(true);          // Trigger view change
+        setBookingID(data.bookingID);
+        setIsCheckout(true);
       }
     } catch (err) {
       alert(err.message);
+      setIsProcessing(false);
     }
   };
 
@@ -99,14 +119,10 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
                         <span style={styles.flightCity}>{f.arrival.city} ({f.arrival.iata})</span>
                     </div>
                     <div style={styles.flightSub}>
-                        Flight {f.flightNumber}
-                    </div>
-                    <div style={styles.flightSub}>
-                      {formatDateTime(f.departure.time)} → {formatDateTime(f.arrival.time)}
+                      Flight {f.flightNumber} • {formatDateTime(f.departure.time)}
                     </div>
                     <div style={styles.classSelectionSub}>
-                      Cabin Class Preference: 
-                      <div style={{ fontWeight: 'bold' }}>{f.selectedClass ? f.selectedClass : 'Not Selected'}</div>
+                      Class: <strong>{f.selectedClass || 'Economy'}</strong>
                     </div>
                 </div>
               </div>
@@ -114,7 +130,7 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
           </div>  
         </div>
 
-        {/* 1. PASSENGER DROPDOWN */}
+        {/* 1. PASSENGER SELECTION */}
         <div style={styles.accordionItem}>
           <div style={styles.accordionHeader} onClick={() => setActiveTab('passengers')}>
               <span style={styles.stepNumber}>1</span>
@@ -123,21 +139,22 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
           </div>
           {activeTab === 'passengers' && (
               <div style={styles.accordionContent}>
-              <PassengerSelection 
+                {/* Note: We pass the pre-fetched global list of occupied IDs here */}
+                <PassengerSelection 
                   userID={userID}
                   requiredCount={passengersNumber}
+                  occupiedPassengerIds={allOccupiedIds} 
                   onConfirm={(passengers) => {
                     setAssignedPassengers(passengers);
-                    setBookingData({}); 
+                    setBookingData({}); // Reset seats if passengers change
                     setActiveTab('seats'); 
                   }}
-                  onBack={onBack} 
-              />
+                />
               </div>
           )}
         </div>
 
-        {/* 2. SEAT SELECTION DROPDOWN */}
+        {/* 2. SEAT SELECTION */}
         <div style={{
           ...styles.accordionItem,
           opacity: isPassengersDone ? 1 : 0.5,
@@ -150,6 +167,9 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
           </div>
           {activeTab === 'seats' && isPassengersDone && (
             <div style={styles.accordionContent}>
+              <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '15px' }}>
+                Please select seats for all passengers on each flight leg.
+              </p>
               {selectedFlights.map(flight => {
                 const hasSeats = !!bookingData[flight.flightInstanceId];
                 return (
@@ -190,54 +210,28 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
 };
 
 const styles = {
-  pageLayout: { display: 'flex', gap: '40px', padding: '40px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'sans-serif', backgroundColor: '#fff' },
-  workflowColumn: { flex: 2 },
+  pageLayout: { display: 'flex', gap: '40px', padding: '40px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'sans-serif' },
+  workflowColumn: { flex: 1 },
   itineraryHeader: { marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid #eee' },
-  // Changed from grid to a flex column for vertical stacking
-  itineraryStack: { display: 'flex', flexDirection: 'column', gap: '12px' },
-  itineraryCard: { 
-    padding: '18px', 
-    border: '1px solid #eee', 
-    borderRadius: '10px', 
-    backgroundColor: '#fcfcfc',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '20px'
-  },
-  legBadge: { 
-    fontSize: '0.7rem', 
-    textTransform: 'uppercase', 
-    fontWeight: 'bold', 
-    color: '#007bff', 
-    backgroundColor: '#e7f3ff',
-    padding: '4px 8px',
-    borderRadius: '4px',
-    minWidth: '70px',
-    textAlign: 'center'
-  },
+  itineraryStack: { display: 'flex', flexDirection: 'column', gap: '10px' },
+  itineraryCard: { padding: '15px', border: '1px solid #eee', borderRadius: '10px', backgroundColor: '#fcfcfc', display: 'flex', alignItems: 'center', gap: '15px' },
+  legBadge: { fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 'bold', color: '#007bff', backgroundColor: '#e7f3ff', padding: '4px 8px', borderRadius: '4px', minWidth: '65px', textAlign: 'center' },
   flightInfoContainer: { flex: 1 },
-  flightMain: { fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '4px' },
-  flightArrow: { margin: '0 12px', color: '#999', fontWeight: 'normal' },
-  flightSub: { fontSize: '0.85rem', color: '#666' },
-  classSelectionSub: { fontSize: '0.9rem', marginTop: '6px' },
-  
-  priceSidebar: { flex: 1, backgroundColor: '#f8f9fa', padding: '25px', borderRadius: '12px', height: 'fit-content', border: '1px solid #eee', position: 'sticky', top: '20px' },
+  flightMain: { fontSize: '1rem', fontWeight: 'bold' },
+  flightArrow: { margin: '0 8px', color: '#999' },
+  flightSub: { fontSize: '0.8rem', color: '#666' },
+  classSelectionSub: { fontSize: '0.8rem', marginTop: '4px' },
   accordionItem: { border: '1px solid #ddd', borderRadius: '8px', marginBottom: '15px', overflow: 'hidden', backgroundColor: 'white' },
-  accordionHeader: { padding: '18px 20px', display: 'flex', alignItems: 'center', cursor: 'pointer', backgroundColor: '#fff' },
+  accordionHeader: { padding: '18px 20px', display: 'flex', alignItems: 'center', cursor: 'pointer' },
   accordionContent: { padding: '20px', borderTop: '1px solid #eee' },
   stepNumber: { width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#007bff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '15px', fontSize: '0.9rem', fontWeight: 'bold' },
   stepTitle: { fontWeight: 'bold', fontSize: '1.1rem', flex: 1 },
   checkMark: { color: '#28a745', fontWeight: 'bold', fontSize: '1.2rem' },
-  
   flightRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' },
   selectBtn: { backgroundColor: '#007bff', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' },
   editBtn: { backgroundColor: '#e6fffa', color: '#2c7a7b', border: '1px solid #2c7a7b', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer' },
-  finalBookBtn: { width: '100%', padding: '18px', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '20px', transition: 'background-color 0.2s ease' },
-  
-  priceRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '12px' },
-  hr: { border: '0', borderTop: '1px solid #ddd', margin: '20px 0' },
-  guaranteeBox: { marginTop: '20px', padding: '12px', border: '1px dashed #ccc', borderRadius: '6px' },
-  backLink: { background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', padding: 0, marginBottom: '15px', display: 'block' }
+  finalBookBtn: { width: '100%', padding: '18px', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '20px' },
+  backLink: { background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', marginBottom: '15px', display: 'block' }
 };
 
 export default BookingSummary;

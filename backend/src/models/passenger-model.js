@@ -76,6 +76,23 @@ export async function getAllPassengersByAccount(account = {}) {
     }
 }
 
+export async function getPassengersByFlight(flightInstanceID) {
+    try {
+        const queryStatement = `
+            SELECT p.passenger_id
+            FROM passengers AS p
+            JOIN tickets AS t ON p.passenger_id = t.passenger_id
+            JOIN flight_instances AS fi ON t.flight_instance_id = fi.flight_instance_id
+            WHERE fi.flight_instance_id = ?
+        `;
+        const [rows] = await pool.query(queryStatement, [flightInstanceID]);
+        return rows;
+    } catch (err) {
+        console.error("Database Error in getPassengersByFlight");
+        throw err;
+    }
+}
+
 // Connects guest passenger to account in account_passengers table
 // Does not return anything
 export async function linkGuestToAccount(args = {}) {
