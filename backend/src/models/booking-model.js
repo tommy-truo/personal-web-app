@@ -148,7 +148,7 @@ export async function getCheckoutInfo(bookingID) {
                         THEN fi.actual_arrival_datetime
                     ELSE 
                         fi.scheduled_arrival_datetime
-                END AS arrival_datetime,
+                END AS arrival_datetime
             
             FROM bookings AS b
 

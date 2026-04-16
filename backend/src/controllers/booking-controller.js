@@ -15,6 +15,7 @@ export const getPassengerBookings = async (req, res) => {
     }
 };
 
+// GET /api/bookings/:bookingID/checkout
 export const getCheckoutInfo = async (req, res) => {
     try {
         const { bookingID } = req.params;
