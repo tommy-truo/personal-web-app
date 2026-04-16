@@ -101,7 +101,6 @@ const Checkout = ({ bookingID, onBack = null }) => {
         <div style={styles.modalOverlay}>
           <form style={styles.modalContent} onSubmit={handleFinalPayment}>
             <h3>Credit Card Details</h3>
-            <p style={{fontSize: '0.8rem', color: '#666'}}>Presentation Mode: Data is not stored.</p>
             
             <input required style={styles.input} type="text" placeholder="Cardholder Name" onChange={e => setCardData({...cardData, name: e.target.value})} />
             <input required style={styles.input} type="text" placeholder="Card Number (0000 0000 0000 0000)" maxLength="16" />
