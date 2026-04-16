@@ -124,6 +124,10 @@ export async function getCheckoutInfo(bookingID) {
                 t.ticket_id,
                 t.ticket_price,
 
+                p.first_name,
+                p.middle_initial,
+                p.last_name,
+
                 s.seat_row,
                 s.column_letter,
 
@@ -156,6 +160,8 @@ export async function getCheckoutInfo(bookingID) {
             JOIN passengers AS owner ON b.booking_owner_passenger_id = owner.passenger_id
 
             JOIN tickets AS t ON t.booking_id = b.booking_id
+
+            JOIN passengers AS p ON t.passenger_id = p.passenger_id
 
             JOIN flight_seats AS fse 
                 ON t.flight_instance_id = fse.flight_instance_id AND t.seat_id = fse.seat_id
@@ -190,6 +196,7 @@ export async function getCheckoutInfo(bookingID) {
             acc[flightId].tickets.push({
                 ticketId: row.ticket_id,
                 price: parseFloat(row.ticket_price),
+                passenger: `${row.first_name} ${row.middle_initial ? row.middle_initial + ". " : ""}${row.last_name}`,
                 seatLabel: `${row.seat_row}${row.column_letter}`
             });
             return acc;
