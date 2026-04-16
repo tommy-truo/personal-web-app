@@ -140,7 +140,7 @@ const MyBookings = ({ userID, onNavigate }) => {
           <div key={booking.id} style={styles.card}>
             {/* Header: Booking ID and Global Status */}
             <div style={styles.cardHeader}>
-              <span style={styles.idLabel}>BOOKING #B{booking.id}{Math.floor(booking.id/2) + 3}</span>
+              <span style={styles.idLabel}>BOOKING #B{Math.floor(booking.id/2 + 3)%10}{booking.id}{Math.floor((booking.id/2 + 3)/10)}</span>
               <div style={{ ...styles.badge, ...getStatusStyle(booking.status) }}>
                 {booking.status}
               </div>
@@ -155,17 +155,8 @@ const MyBookings = ({ userID, onNavigate }) => {
                     <div style={styles.routeText}>
                       {f.departure.city} ({f.departure.iata}) ➔ {f.arrival.city} ({f.arrival.iata})
                     </div>
-                    <div style={{...styles.dateSubtext}}>
-                      Departs:
-                    </div>
                     <div style={{...styles.dateSubtext, fontWeight: 'bold'}}>
-                      {new Date(f.departure.time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                    <div style={{...styles.dateSubtext}}>
-                      Arrives:
-                    </div>
-                    <div style={{...styles.dateSubtext, fontWeight: 'bold'}}>
-                      {new Date(f.arrival.time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {new Date(f.departure.time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} ➔ {new Date(f.arrival.time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                   <div style={styles.flightNum}>Flight {f.number}</div>
