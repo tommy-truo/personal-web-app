@@ -5,6 +5,7 @@ import { pool } from '../../db.js';
 // Returns a list of all bookings owned by a passenger
 export async function getPassengerBookings(ownerID) {
     try {
+        const now = new Date();
         const query = `
             SELECT
                 b.booking_id,
@@ -51,11 +52,11 @@ export async function getPassengerBookings(ownerID) {
             JOIN account_passengers AS ap ON ap.passenger_id = b.booking_owner_passenger_id
             WHERE 
                 ap.account_id = ?
-                AND scheduled_arrival_datetime >= (NOW() - INTERVAL 24 HOUR)
+                AND scheduled_arrival_datetime >= (? - INTERVAL 24 HOUR)
             ORDER BY b.created_datetime DESC, fi.scheduled_departure_datetime ASC;
         `;
 
-        const [rows] = await pool.query(query, [ownerID]);
+        const [rows] = await pool.query(query, [ownerID, now]);
 
         const grouped = rows.reduce((acc, row) => {
             // 1. Initialize Booking
