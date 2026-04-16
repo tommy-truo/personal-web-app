@@ -55,7 +55,7 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
           flightInstanceID: parseInt(flightId),
           seatID: parseInt(seatId),
           passengerID: passenger.passengerId,
-          price: passenger.seatPrice // We stored this in SeatSelection!
+          price: passenger.seatPrice
         });
       });
     });
