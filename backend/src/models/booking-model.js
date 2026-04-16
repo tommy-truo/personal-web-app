@@ -131,11 +131,11 @@ export async function getCheckoutInfo(bookingID) {
 
                 fr.flight_number,
 
-                depA.city,
-                depA.iata,
+                depA.city AS depA_city,
+                depA.iata AS depA_iata,
 
-                arrA.city,
-                arrA.iata,
+                arrA.city AS arrA_city,
+                arrA.iata AS arrA_iata,
 
                 CASE
                     WHEN fs.status_name = 'Delayed' 
