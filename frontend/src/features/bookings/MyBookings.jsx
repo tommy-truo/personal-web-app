@@ -29,13 +29,6 @@ const MyBookings = ({ userID, onNavigate }) => {
 
             // 2. Only keep bookings where the latest arrival is in the future
             return latestArrival >= now.getTime();
-          })
-          .map(booking => {
-            // 3. Mark as Expired if pending and payment window closed (UX only)
-            if (booking.expires && new Date(booking.expires) < now && booking.status === 'Pending') {
-              return { ...booking, status: 'Expired' };
-            }
-            return booking;
           });
 
         setBookings(filteredAndProcessed);
