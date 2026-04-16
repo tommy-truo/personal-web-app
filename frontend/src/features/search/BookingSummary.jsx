@@ -10,11 +10,14 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
   const [activeFlightForSeats, setActiveFlightForSeats] = useState(null);
   const [isCheckout, setIsCheckout] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [bookingID, setBookingID] = useState(null);
 
   const isPassengersDone = assignedPassengers.length === parseInt(passengersNumber);
   const isSeatsDone = Object.keys(bookingData).length === selectedFlights.length;
 
   const checkoutButtonText = isProcessing ? "Proceeding to Checkout..." : "Confirm Details & Checkout";
+
+  const url = import.meta.env.VITE_API_URL;
 
   const formatDateTime = (dateString) => {
     return new Date(dateString).toLocaleString([], { 
@@ -36,19 +39,7 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
       />
     );
   }
-
-  if (isCheckout) {
-    return (
-      <Checkout 
-        selectedFlights={selectedFlights}
-        assignedPassengers={assignedPassengers}
-        bookingData={bookingData}
-        passengersNumber={passengersNumber}
-        userID={userID}
-      />
-    );
-  }
-
+  
   const handleBeginCheckout = async () => {
     setIsProcessing(true);
     
@@ -70,26 +61,25 @@ const BookingSummary = ({ selectedFlights, passengersNumber, userID, onBack }) =
     });
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/bookings/`, {
+      const response = await fetch(`${url}/api/bookings/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ownerID: userID, tickets })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Booking failed');
+      if (response.ok) {
+        const data = await response.json();
+        setBookingID(data.bookingID); // Store the ID
+        setIsCheckout(true);          // Trigger view change
       }
-
-      const { bookingID } = await response.json();
-      
-      // 2. Only now proceed to Checkout UI, passing the new ID
-      setIsCheckout(true); 
-      // You might want to pass bookingID to the Checkout component here
     } catch (err) {
       alert(err.message);
     }
   };
+
+  if (isCheckout) {
+    return <Checkout bookingID={bookingID} />;
+  }
 
   return (
     <div style={styles.pageLayout}>
