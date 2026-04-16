@@ -28,6 +28,11 @@ router.delete('/:bookingID', BookingController.cancelBooking);
 router.patch('/tickets/:ticketID/check-in', BookingController.checkInTicket);
 
 // DELETE /api/tickets/:ticketID - Delete a single ticket and release the seat
-router.delete('/tickets/:ticketID', BookingController.deleteTicket);
+router.delete('/:bookingID/tickets/:ticketID', BookingController.deleteTicket);
+
+// --- Transaction Management ---
+
+// POST /api/bookings/transaction
+router.post('/transaction', BookingController.createTransaction);
 
 export default router;

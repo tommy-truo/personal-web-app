@@ -99,11 +99,11 @@ export const checkInTicket = async (req, res) => {
     }
 }
 
-// DELETE /api/tickets/:ticketID
+// DELETE /api/bookings/:bookingID/tickets/:ticketID
 export const deleteTicket = async (req, res) => {
     try {
-        const { ticketID } = req.params;
-        const affectedRows = await BookingModel.deleteTicket(ticketID);
+        const { bookingID, ticketID } = req.params;
+        const affectedRows = await BookingModel.deleteTicket(bookingID, ticketID);
 
         if (affectedRows === 0) {
             return res.status(404).json({ error: "Ticket not found." });
@@ -128,3 +128,17 @@ export const cancelBooking = async (req, res) => {
         res.status(500).json({ error: "Failed to cancel booking." });
     }
 };
+
+// POST /api/bookings/transaction
+export const createTransaction = async (req, res) => {
+    try {
+        const { bookingID, paymentMethod, transactionType, amount } = req.body;
+        await BookingModel.createTransaction(bookingID, paymentMethod, transactionType, amount);
+
+        res.status(201).json({ 
+            message: "Transaction created successfully."
+        });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to create transaction." });
+    }
+}

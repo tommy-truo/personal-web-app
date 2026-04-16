@@ -13,6 +13,7 @@ export async function getPassengerBookings(ownerID) {
                 b.expires_datetime,
                 t.ticket_id,
                 t.checked_in,
+                t.ticket_price,
                 bg.group_name,
                 fr.flight_number,
                 fi.flight_instance_id,
@@ -94,7 +95,8 @@ export async function getPassengerBookings(ownerID) {
                 passenger: `${row.first_name} ${row.middle_initial ? row.middle_initial + ". " : ""}${row.last_name}`,
                 seat: `${row.seat_row}${row.column_letter}`,
                 boardingGroup: row.group_name,
-                checkedIn: Boolean(row.checked_in)
+                checkedIn: Boolean(row.checked_in),
+                price: row.ticket_price
             });
 
             return acc;
@@ -206,7 +208,7 @@ export async function getCheckoutInfo(bookingID) {
             bookingID,
             status: rows[0].booking_status,
             expires: rows[0].expires_datetime,
-            loyalty: { isMember: rows[0].is_loyalty_member, miles: rows[0].loyalty_miles },
+            loyalty: { isMember: Boolean(rows[0].is_loyalty_member), miles: rows[0].loyalty_miles },
             flights: Object.values(grouped)
         };
     } catch (err) {
@@ -383,16 +385,15 @@ export async function expireBooking(bookingID) {
     }
 }
 
-// Cancels booking
+// Cancels booking (refunds it, not actually cancel)
 export async function cancelBooking(bookingID) {
     try {
-        // Set the booking status to 'Cancelled'
         const updateBookingQuery = `
             UPDATE bookings
             SET booking_status_id = (
                 SELECT booking_status_id 
                 FROM booking_statuses 
-                WHERE status_name = 'Cancelled' 
+                WHERE status_name = 'Refunded' 
                 LIMIT 1
             ), last_updated_datetime = NOW()
             WHERE booking_id = ?
@@ -407,7 +408,7 @@ export async function cancelBooking(bookingID) {
 
 // Deletes ticket with matching ticketID from tickets table
 // Returns number of rows affected
-export async function deleteTicket(ticketID) {
+export async function deleteTicket(bookingID, ticketID) {
     const conn = await pool.getConnection();
     
     try {
@@ -426,16 +427,6 @@ export async function deleteTicket(ticketID) {
         `;
         await conn.query(statusStatement, [ticketID]);
 
-        // Update the last-updated timestamp of ticket's booking
-        const bookingStatement = `
-            UPDATE bookings
-            JOIN tickets AS t
-                ON bookings.booking_id = t.booking_id
-            SET last_updated_datetime = NOW()
-            WHERE t.ticket_id = ?
-        `;
-        await conn.query(bookingStatement, [ticketID]);
-
         // Delete ticket
         const ticketStatement = `
             DELETE FROM tickets
@@ -444,6 +435,23 @@ export async function deleteTicket(ticketID) {
         const [ticketResult] = await conn.query(ticketStatement, [ticketID]);
 
         await conn.commit();
+
+        const bookingStatement = `
+            UPDATE bookings
+            SET 
+                booking_status_id = (
+                    SELECT booking_status_id
+                    FROM booking_statuses
+                    WHERE status_name = 'Refunded'),
+                last_updated_datetime = NOW()
+            WHERE 
+                booking_id = ?
+                AND (SELECT COUNT(*)
+                    FROM tickets
+                    WHERE booking_id = ?) = 0
+        `;
+        await pool.query(bookingStatement, [bookingID, bookingID]);
+
         return ticketResult.affectedRows;
     } catch (err) {
         await conn.rollback();
@@ -474,6 +482,33 @@ export async function getBookingsToExpire() {
         return rows;
     } catch (err) {
         console.error("Database Error in getBookingsToExpire");
+        throw err;
+    }
+}
+
+export async function createTransaction(bookingID, paymentMethod, transactionType, amount) {
+    try {
+        if (!bookingID || !paymentMethod || !transactionType) {
+            throw new Error("Booking ID, Payment Method, and Transaction Type are required.");
+        }
+
+        const queryStatement = `
+            INSERT INTO transactions (booking_id, payment_method_id, transaction_type_id, amount, transaction_datetime)
+            SELECT 
+                ?, 
+                pm.transaction_payment_method_id, 
+                tt.transaction_type_id,
+                ?,
+                NOW()
+            FROM transaction_payment_methods AS pm
+            JOIN transaction_types AS tt
+            WHERE pm.payment_method_name = ? 
+                AND tt.type_name = ?;
+        `;
+
+        await pool.query(queryStatement, [bookingID, amount, paymentMethod, transactionType]);
+    } catch (err) {
+        console.error("Database Error in createTransaction", err);
         throw err;
     }
 }
